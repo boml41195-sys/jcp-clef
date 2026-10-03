@@ -1,0 +1,16 @@
+# R for travis: see documentation at https://docs.travis-ci.com/user/languages/r
+
+addons:
+  apt:
+    packages:
+      - libv8-dev
+      - valgrind
+      - libtesseract-dev
+      - libleptonica-dev
+      - tesseract-ocr-eng
+      - libpoppler-cpp-dev
+      - libmagick++-dev
+
+language: R
+sudo: false
+cache: packages

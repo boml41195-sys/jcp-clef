@@ -1,0 +1,63 @@
+"""Parsing helpers for the TJRJ jurisprudence search."""
+from __future__ import annotations
+
+import re
+from datetime import datetime, timezone
+from typing import Any
+
+import pandas as pd
+
+# Mantido local (em vez de core.parse_utils.clean_html) porque clean_html
+# substitui tags por espaco e altera o output observavel quando o backend
+# envolve trechos em tags inline (<b>foo</b> -> "foo " em vez de "foo").
+# Mesma decisao registrada em TJGO/TJMT e aguardando uma variante
+# clean_html(separator="") no core.parse_utils.
+_TAG_RE = re.compile(r"<[^>]+>")
+_DATE_RE = re.compile(r"/Date\((-?\d+)\)/")
+
+
+def _strip_html(text: Any) -> str:
+    if text is None:
+        return ""
+    return _TAG_RE.sub("", str(text)).strip()
+
+
+def _parse_aspnet_date(raw: Any):
+    if not isinstance(raw, str):
+        return None
+    match = _DATE_RE.search(raw)
+    if not match:
+        return None
+    try:
+        millis = int(match.group(1))
+    except ValueError:
+        return None
+    if millis <= 0:
+        return None
+    return datetime.fromtimestamp(millis / 1000, tz=timezone.utc).date()
+
+
+def cjsg_parse(raw_pages: list) -> pd.DataFrame:
+    """Transform raw JSON pages into a tidy DataFrame."""
+    rows: list = []
+    for page in raw_pages:
+        if not page:
+            continue
+        rows.extend(
+            {
+                "cod_documento": doc.get("CodDoc"),
+                "processo": doc.get("NumProcCnj") or doc.get("Processo"),
+                "numero_antigo": doc.get("NumAntigo"),
+                "classe": doc.get("Classe") or doc.get("DescrRecurso"),
+                "tipo_documento": doc.get("DescrTipDoc"),
+                "orgao_julgador": doc.get("NomeOrgJulg"),
+                "relator": doc.get("NomeMagRel"),
+                "data_julgamento": _parse_aspnet_date(doc.get("DtHrMov")),
+                "data_publicacao": _parse_aspnet_date(doc.get("DtHrPubl")),
+                "ementa": _strip_html(
+                    doc.get("TextoSemFormat") or doc.get("Texto")
+                ),
+            }
+            for doc in page.get("DocumentosConsulta", []) or []
+        )
+    return pd.DataFrame(rows)

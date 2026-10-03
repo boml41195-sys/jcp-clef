@@ -1,0 +1,432 @@
+clef (Cloudflare) · Cloudflare AI docs · Cloudflare AI docs
+Skip to content
+Documentation Index
+Fetch the complete documentation index at: https://developers.cloudflare.com/llms.txt
+Use this file to discover all available pages before exploring further.
+Docs
+Directory
+API
+SDKs
+Changelog
+Search
+Ctrl
+K
+Log in
+Dashboard
+AI
+/
+Overview
+Models
+Related products
+Workers AI ↗︎
+AI Gateway ↗︎
+Agents ↗︎
+AI Search ↗︎
+Vectorize ↗︎
+AI Crawl Control ↗︎
+Browser Rendering ↗︎
+Agent Lee ↗︎
+Dynamic Workers ↗︎
+Sandboxes ↗︎
+Agent resources
+Agent setup ↗︎
+Cloudflare Skills ↗︎
+Code Mode MCP Server ↗︎
+Domain-specific MCP Servers ↗︎
+MCP
+AI llms.txt ↗︎
+AI llms-full.txt ↗︎
+Cloudflare Docs llms.txt ↗︎
+Cloudflare Docs llms-full.txt ↗︎
+Home
+/
+AI
+/
+Models
+/
+Models
+clef
+Text Generation • Cloudflare
+Copy as Markdown
+|
+View as Markdown
+|
+Agent setup
+@cf/cloudflare/clef
+Cloudflare-hosted
+Vision
+Clef is a 27B multimodal decision model that turns a state and a schema of typed questions into decisions. It reads the state as text, JSON, images, or video, and returns a probability for every allowed option of every question.
+Model Info
+Context Window
+↗
+65,536 tokens
+Terms and License
+link
+↗
+More information
+link
+↗
+Vision
+Yes
+Unit Pricing
+$0.24 per M input tokens
+Usage
+export
+interface
+Env
+{
+AI
+:
+Ai
+;
+}
+export
+default
+{
+async
+fetch
+(
+request
+,
+env
+)
+:
+Promise
+<
+Response
+> {
+const
+response
+=
+await
+env.
+AI
+.
+run
+(
+"@cf/cloudflare/clef"
+, {
+model:
+"clef"
+,
+state:
+"Checkout has been failing for every customer for the last hour."
+,
+questions: {
+urgent: {
+type:
+"noul"
+,
+instructions:
+"Is this support request urgent?"
+,
+},
+team: {
+type:
+"choice"
+,
+instructions:
+"Which team should handle this request?"
+,
+criteria: {
+billing:
+"Payments, invoices, and refunds"
+,
+technical:
+"Outages, errors, and configuration"
+,
+sales:
+"Plans and upgrades"
+,
+},
+},
+severity: {
+type:
+"score"
+,
+instructions:
+"How severe is the customer impact?"
+,
+criteria: [
+"No impact"
+,
+"Minor"
+,
+"Major"
+,
+"Critical"
+],
+},
+},
+});
+// response.answers.urgent   -> probability the request is urgent
+// response.answers.team     -> chosen team with per-option probabilities
+// response.answers.severity -> probability-weighted score (0 = lowest level)
+return
+Response.
+json
+(response);
+},
+}
+satisfies
+ExportedHandler
+<
+Env
+>;
+import
+os
+import
+requests
+ACCOUNT_ID
+=
+"your-account-id"
+AUTH_TOKEN
+=
+os.environ.get(
+"CLOUDFLARE_AUTH_TOKEN"
+)
+response
+=
+requests.post(
+f
+"https://api.cloudflare.com/client/v4/accounts/
+{ACCOUNT_ID}
+/ai/run/@cf/cloudflare/clef"
+,
+headers
+=
+{
+"Authorization"
+:
+f
+"Bearer
+{AUTH_TOKEN}
+"
+},
+json
+=
+{
+"model"
+:
+"clef"
+,
+"state"
+:
+"Checkout has been failing for every customer for the last hour."
+,
+"questions"
+: {
+"urgent"
+: {
+"type"
+:
+"noul"
+,
+"instructions"
+:
+"Is this support request urgent?"
+,
+},
+"team"
+: {
+"type"
+:
+"choice"
+,
+"instructions"
+:
+"Which team should handle this request?"
+,
+"criteria"
+: {
+"billing"
+:
+"Payments, invoices, and refunds"
+,
+"technical"
+:
+"Outages, errors, and configuration"
+,
+"sales"
+:
+"Plans and upgrades"
+,
+},
+},
+"severity"
+: {
+"type"
+:
+"score"
+,
+"instructions"
+:
+"How severe is the customer impact?"
+,
+"criteria"
+: [
+"No impact"
+,
+"Minor"
+,
+"Major"
+,
+"Critical"
+],
+},
+},
+},
+)
+print
+(response.json())
+curl
+https://api.cloudflare.com/client/v4/accounts/
+$CLOUDFLARE_ACCOUNT_ID
+/ai/run/@cf/cloudflare/clef
+\
+-X
+POST
+\
+-H
+"Authorization: Bearer
+$CLOUDFLARE_AUTH_TOKEN
+"
+\
+-d
+'{
+"model": "clef",
+"state": "Checkout has been failing for every customer for the last hour.",
+"questions": {
+"urgent": { "type": "noul", "instructions": "Is this support request urgent?" },
+"team": {
+"type": "choice",
+"instructions": "Which team should handle this request?",
+"criteria": {
+"billing": "Payments, invoices, and refunds",
+"technical": "Outages, errors, and configuration",
+"sales": "Plans and upgrades"
+}
+},
+"severity": {
+"type": "score",
+"instructions": "How severe is the customer impact?",
+"criteria": ["No impact", "Minor", "Major", "Critical"]
+}
+}
+}'
+Parameters
+model
+string
+required
+pattern
+:
+^\s*(clef|clef-flash)\s*$
+Required. The model selector: "clef" for @cf/cloudflare/clef, "clef-flash" for @cf/cloudflare/clef-flash.
+state
+required
+Required. The content to evaluate: a string, or structured data (object/array) such as records, chat logs, or application state. Long text state is truncated to fit the model's token limit.
+▶
+questions
+{}
+object
+required
+minProperties
+:
+1
+maxProperties
+:
+64
+Map of question id to a typed question (noul, choice, or score). 1 to 64 questions; ids may use letters, digits, '_', '.', '-' (max 100 chars). Answers are returned under the same ids.
+▶
+images
+[]
+array
+maxItems
+:
+4
+Clef extension to the System One API. Optional embedded PNG, JPEG, or WebP images placed before the state (max 4; 4 MiB and 16 megapixels each, 8 MiB total decoded; whole request body max 13 MiB). Remote URLs are not accepted.
+model
+string
+The model that performed the evaluation.
+▶
+answers
+{}
+object
+One answer per question, keyed by the question ids from the request.
+▶
+usage
+{}
+object
+API Schemas (Raw)
+Input
+Output
+Was this helpful?
+Yes
+No
+Report issue
+On this page
+Overview
+Usage
+Parameters
+API Schemas (Raw)
+Report issue
+Getting started
+Plans
+Contact sales
+Partners
+Find a partner
+Startups
+Under attack?
+Domain name search
+Company
+About
+Careers
+Investors
+Press
+Press kit
+Global network
+Public interest
+Project Galileo
+Athenian Project
+Cloudflare for Campaigns
+Project Fairshot
+Impact/ESG
+Compliance
+Compliance resources
+Trust Hub
+Data Protection
+Responsible AI
+Transparency report
+Report abuse
+Resources
+App innovation report
+Cloudflare Radar
+Case studies
+Status
+Support
+Events
+Blog
+Developers
+Documentation
+Learning center
+Community
+Solutions
+SSE and SASE platform
+Cloudflare AI Cloud
+AI Security
+Frontend Development Platform
+Multi-Tenant Platform Development
+Web Security Platform
+Start Building
+Log In
+© 2026 Cloudflare, Inc.
+Privacy policy
+|
+Report security issues
+|
+Terms of use
+|
+Trademark
+|
+Your privacy choices
+Docs

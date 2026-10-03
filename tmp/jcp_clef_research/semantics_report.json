@@ -1,0 +1,82 @@
+{
+  "source": "C:\\Users\\100OS\\Downloads\\LOPS OS DEFINITIVO\\tmp\\jcp_clef_research\\clef\\joint_schema_model.py",
+  "passed": 18,
+  "failed": 0,
+  "torch_imported": false,
+  "model_inference_executed": false,
+  "real_tokenizer_used": false,
+  "tests": [
+    {
+      "test": "choice options are sorted for encoding",
+      "status": "passed"
+    },
+    {
+      "test": "noul encodes true and false",
+      "status": "passed"
+    },
+    {
+      "test": "score options use ordinal string IDs",
+      "status": "passed"
+    },
+    {
+      "test": "choice uses highest probability",
+      "status": "passed"
+    },
+    {
+      "test": "confidence equals selected probability",
+      "status": "passed"
+    },
+    {
+      "test": "probabilities rounded to four decimals",
+      "status": "passed"
+    },
+    {
+      "test": "score is weighted expectation, not winning index",
+      "status": "passed"
+    },
+    {
+      "test": "score includes ordinal legend",
+      "status": "passed"
+    },
+    {
+      "test": "noul returns probability, not bool",
+      "status": "passed"
+    },
+    {
+      "test": "choice tie follows criteria insertion order",
+      "status": "passed"
+    },
+    {
+      "test": "JSON render preserves Unicode",
+      "status": "passed"
+    },
+    {
+      "test": "question identity preserved by encoding",
+      "status": "passed"
+    },
+    {
+      "test": "full state retained when there is room",
+      "status": "passed"
+    },
+    {
+      "test": "encoder truncates state suffix",
+      "status": "passed"
+    },
+    {
+      "test": "schema survives state truncation",
+      "status": "passed"
+    },
+    {
+      "test": "explicit state cap is applied",
+      "status": "passed"
+    },
+    {
+      "test": "oversized schema is rejected",
+      "status": "passed"
+    },
+    {
+      "test": "record without questions is rejected",
+      "status": "passed"
+    }
+  ]
+}

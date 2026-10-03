@@ -1,0 +1,699 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Check": {
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "enum": [
+            "schema",
+            "identity",
+            "filters",
+            "coverage",
+            "provenance"
+          ],
+          "title": "Check Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "check_id",
+        "status",
+        "evidence_refs"
+      ],
+      "title": "Check",
+      "type": "object"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "sources_requested": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Sources Requested",
+          "type": "array"
+        },
+        "sources_completed": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Sources Completed",
+          "type": "array"
+        },
+        "pages_visited": {
+          "minimum": 0,
+          "title": "Pages Visited",
+          "type": "integer"
+        },
+        "items_returned": {
+          "minimum": 0,
+          "title": "Items Returned",
+          "type": "integer"
+        },
+        "total_reported": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Total Reported"
+        },
+        "complete": {
+          "title": "Complete",
+          "type": "boolean"
+        },
+        "source_exhausted": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Exhausted"
+        },
+        "stop_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "page_limit",
+                "item_limit",
+                "document_limit",
+                "deadline",
+                "model_budget",
+                "source_unavailable",
+                "cancelled",
+                "access_challenge",
+                "no_progress"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Stop Reason"
+        }
+      },
+      "required": [
+        "sources_requested",
+        "sources_completed",
+        "pages_visited",
+        "items_returned",
+        "total_reported",
+        "complete",
+        "source_exhausted",
+        "stop_reason"
+      ],
+      "title": "Coverage",
+      "type": "object"
+    },
+    "DecisionRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_ref": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Decision Ref",
+          "type": "string"
+        },
+        "source_id": {
+          "const": "tjsp-esaj-cjpg",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_document_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.:-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Document Id"
+        },
+        "case_number_raw": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Case Number Raw"
+        },
+        "decision_kind": {
+          "enum": [
+            "sentence",
+            "interlocutory",
+            "judgment",
+            "other",
+            "unknown"
+          ],
+          "title": "Decision Kind",
+          "type": "string"
+        },
+        "decision_kind_basis": {
+          "enum": [
+            "source",
+            "derived",
+            "unknown"
+          ],
+          "title": "Decision Kind Basis",
+          "type": "string"
+        },
+        "court": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Court",
+          "type": "string"
+        },
+        "panel_raw": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Panel Raw"
+        },
+        "judge_raw": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Judge Raw"
+        },
+        "judgment_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Judgment Date"
+        },
+        "publication_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Publication Date"
+        },
+        "availability_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Availability Date"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "full_text_ref": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.:-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Full Text Ref"
+        },
+        "source_url": {
+          "maxLength": 4096,
+          "pattern": "^https://[^\\s]+$",
+          "title": "Source Url",
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "decision_ref",
+        "source_id",
+        "source_document_id",
+        "case_number_raw",
+        "decision_kind",
+        "decision_kind_basis",
+        "court",
+        "panel_raw",
+        "judge_raw",
+        "judgment_date",
+        "publication_date",
+        "availability_date",
+        "summary",
+        "full_text_ref",
+        "source_url",
+        "observed_at",
+        "evidence_refs"
+      ],
+      "title": "DecisionRecord",
+      "type": "object"
+    },
+    "DecisionSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "source_excerpt",
+            "source_headnote",
+            "model_summary"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "DecisionSummary",
+      "type": "object"
+    },
+    "Execution": {
+      "additionalProperties": false,
+      "properties": {
+        "recipe_id": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.:-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Recipe Id"
+        },
+        "recipe_version": {
+          "anyOf": [
+            {
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Recipe Version"
+        },
+        "transport": {
+          "anyOf": [
+            {
+              "enum": [
+                "browser",
+                "http"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Transport"
+        },
+        "model_calls": {
+          "minimum": 0,
+          "title": "Model Calls",
+          "type": "integer"
+        },
+        "repaired": {
+          "title": "Repaired",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "recipe_id",
+        "recipe_version",
+        "transport",
+        "model_calls",
+        "repaired"
+      ],
+      "title": "Execution",
+      "type": "object"
+    },
+    "JcpError": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "INVALID_INPUT",
+            "UNSUPPORTED_CAPABILITY",
+            "POLICY_DENIED",
+            "ACCESS_DENIED",
+            "AUTH_REQUIRED",
+            "AUTH_EXPIRED",
+            "ACCESS_CHALLENGE",
+            "RATE_LIMITED",
+            "PORTAL_UNAVAILABLE",
+            "TRANSPORT_ERROR",
+            "SELECTOR_NOT_FOUND",
+            "AMBIGUOUS_TARGET",
+            "PAGE_STATE_MISMATCH",
+            "PARSER_DRIFT",
+            "TRUNCATED_RESPONSE",
+            "VERIFICATION_FAILED",
+            "REPAIR_FAILED",
+            "RECIPE_CONFLICT",
+            "BUDGET_EXHAUSTED",
+            "DEADLINE_EXCEEDED",
+            "UNCERTAIN_EFFECT"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "stage": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Stage",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "effect_state": {
+          "enum": [
+            "not_dispatched",
+            "confirmed",
+            "uncertain"
+          ],
+          "title": "Effect State",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "next_action": {
+          "enum": [
+            "none",
+            "correct_input",
+            "authenticate",
+            "wait",
+            "repair",
+            "reconcile",
+            "contact_operator"
+          ],
+          "title": "Next Action",
+          "type": "string"
+        },
+        "cause_ref": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.:-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cause Ref"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "stage",
+        "retryable",
+        "effect_state",
+        "evidence_refs",
+        "next_action",
+        "cause_ref"
+      ],
+      "title": "JcpError",
+      "type": "object"
+    },
+    "SearchData": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/DecisionRecord"
+          },
+          "maxItems": 100,
+          "title": "Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "SearchData",
+      "type": "object"
+    },
+    "Verification": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "not_run",
+            "passed",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/Check"
+          },
+          "maxItems": 5,
+          "title": "Checks",
+          "type": "array"
+        },
+        "evidence_refs": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "checks",
+        "evidence_refs"
+      ],
+      "title": "Verification",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "const": "0.1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "run_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "accepted",
+        "running",
+        "needs_input",
+        "needs_auth",
+        "suspended",
+        "success",
+        "partial",
+        "failed",
+        "cancelled",
+        "uncertain_effect"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "capability_id": {
+      "const": "tjsp.cjpg.search_decisions",
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "capability_version": {
+      "const": "1.0.0",
+      "title": "Capability Version",
+      "type": "string"
+    },
+    "installation_id": {
+      "const": "tjsp-esaj-cjpg",
+      "title": "Installation Id",
+      "type": "string"
+    },
+    "data": {
+      "$ref": "#/$defs/SearchData"
+    },
+    "coverage": {
+      "$ref": "#/$defs/Coverage"
+    },
+    "verification": {
+      "$ref": "#/$defs/Verification"
+    },
+    "execution": {
+      "$ref": "#/$defs/Execution"
+    },
+    "errors": {
+      "items": {
+        "$ref": "#/$defs/JcpError"
+      },
+      "maxItems": 20,
+      "title": "Errors",
+      "type": "array"
+    },
+    "continuation": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Continuation"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "run_id",
+    "status",
+    "capability_id",
+    "capability_version",
+    "installation_id",
+    "data",
+    "coverage",
+    "verification",
+    "execution",
+    "errors",
+    "continuation"
+  ],
+  "title": "CjpgResult",
+  "type": "object"
+}

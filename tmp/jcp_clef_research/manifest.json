@@ -1,0 +1,84 @@
+[
+  {
+    "model": "Cloudflare/clef",
+    "revision": "2f3de3dd85f379784083b0814d997ab627200f0c",
+    "files": [
+      {
+        "file": "README.md",
+        "url": "https://huggingface.co/Cloudflare/clef/resolve/2f3de3dd85f379784083b0814d997ab627200f0c/README.md",
+        "bytes": 10214,
+        "sha256": "b0211b6ca10038b3168dde51f1482088b8c6b0fdccbbd765fce237dbc24f5d76"
+      },
+      {
+        "file": "joint_schema_model.py",
+        "url": "https://huggingface.co/Cloudflare/clef/resolve/2f3de3dd85f379784083b0814d997ab627200f0c/joint_schema_model.py",
+        "bytes": 23263,
+        "sha256": "0e304cf7c6500e8bb59bef7e2afd2c6373f82596dfb3b57d1aa93c175e2dc3a3"
+      },
+      {
+        "file": "joint_head_config.json",
+        "url": "https://huggingface.co/Cloudflare/clef/resolve/2f3de3dd85f379784083b0814d997ab627200f0c/joint_head_config.json",
+        "bytes": 119,
+        "sha256": "890be585d75b981201eb96a35f98a9967afe37bc8d220cfdea2e72d56507534f"
+      },
+      {
+        "file": "config.json",
+        "url": "https://huggingface.co/Cloudflare/clef/resolve/2f3de3dd85f379784083b0814d997ab627200f0c/config.json",
+        "bytes": 3688,
+        "sha256": "c42e88892bd3fd84e8276b2ad90df58c1c3b797676ea161035006a72ad468c58"
+      },
+      {
+        "file": "LICENSE",
+        "url": "https://huggingface.co/Cloudflare/clef/resolve/2f3de3dd85f379784083b0814d997ab627200f0c/LICENSE",
+        "bytes": 11544,
+        "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a"
+      }
+    ]
+  },
+  {
+    "model": "Cloudflare/clef-flash",
+    "revision": "17f0b0ad64efb65d273590632833508766b2aae6",
+    "files": [
+      {
+        "file": "README.md",
+        "url": "https://huggingface.co/Cloudflare/clef-flash/resolve/17f0b0ad64efb65d273590632833508766b2aae6/README.md",
+        "bytes": 10222,
+        "sha256": "4aac13b2563900152eab8feaad0b310a91b55a96135abf4ad17ad4a302bd73e6"
+      },
+      {
+        "file": "joint_schema_model.py",
+        "url": "https://huggingface.co/Cloudflare/clef-flash/resolve/17f0b0ad64efb65d273590632833508766b2aae6/joint_schema_model.py",
+        "bytes": 23263,
+        "sha256": "0e304cf7c6500e8bb59bef7e2afd2c6373f82596dfb3b57d1aa93c175e2dc3a3"
+      },
+      {
+        "file": "joint_head_config.json",
+        "url": "https://huggingface.co/Cloudflare/clef-flash/resolve/17f0b0ad64efb65d273590632833508766b2aae6/joint_head_config.json",
+        "bytes": 119,
+        "sha256": "77efe959a38b5b17b241543e129e695f3c77465ece55a25985279bd8176279a0"
+      },
+      {
+        "file": "config.json",
+        "url": "https://huggingface.co/Cloudflare/clef-flash/resolve/17f0b0ad64efb65d273590632833508766b2aae6/config.json",
+        "bytes": 2832,
+        "sha256": "66f87f6fb2616b46604daf2a9c67ddc87938296d07156efa34d59b5be49e3238"
+      },
+      {
+        "file": "LICENSE",
+        "url": "https://huggingface.co/Cloudflare/clef-flash/resolve/17f0b0ad64efb65d273590632833508766b2aae6/LICENSE",
+        "bytes": 11544,
+        "sha256": "bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a"
+      }
+    ]
+  },
+  {
+    "documentation_url": "https://developers.cloudflare.com/ai/models/@cf/cloudflare/clef/index.md",
+    "bytes": 152243,
+    "sha256": "b9a133be353471bef7d114e71d4cafc403f9da42cf6d5f2c7e81a6e08ad4a23a"
+  },
+  {
+    "documentation_url": "https://developers.cloudflare.com/ai/models/@cf/cloudflare/clef-flash/index.md",
+    "bytes": 152427,
+    "sha256": "a38b79b158024fd0a62df22d02b9fddb2d535127b2ea6c66291438b3f07925f7"
+  }
+]

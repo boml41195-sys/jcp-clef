@@ -1,0 +1,121 @@
+# Servidor MCP de Pesquisa em Direito Brasileiro
+
+[🇺🇸 Read in English](README.md)
+
+Um servidor MCP (Model Context Protocol) para pesquisa sobre direito brasileiro movida por agentes 
+de IA usando fontes oficiais.
+
+## Prefácio
+Este servidor capacita modelos com capacidades de scraping, facilitando assim a pesquisa para
+qualquer pessoa legitimamente interessada em questões jurídicas brasileiras.
+
+Esta facilidade vem com um preço: o risco de sobrecarregar os servidores das fontes oficiais se
+mal utilizada. Por favor, mantenha a carga nas fontes em uma quantidade razoável.
+
+## Arquitetura
+
+Cada tribunal utiliza o método de acesso mais confiável disponível:
+
+| Tribunal | Método | Endpoint |
+|----------|--------|----------|
+| **STJ** | HTTP POST direto | `processo.stj.jus.br/SCON/pesquisar.jsp` |
+| **STF** | Browser headless (Chromium) | `portal.stf.jus.br` |
+| **TST** | Browser headless (Chromium) | `jurisprudencia.tst.jus.br` |
+| **BNP/CNJ** (precedentes qualificados, 60+ tribunais) | HTTP POST direto (API REST JSON) | `pangeabnp.pdpj.jus.br/api/v1/precedentes` |
+| **TNU** | HTTP POST direto (formulário HTML do eproc) | `eproctnu-jur.cjf.jus.br/eproc/externo_controlador.php` |
+| **TRF4** (TRF4, TRU4 e Turmas Recursais da 4ª Região) | HTTP POST direto (formulário HTML do eproc) | `jurisprudencia.trf4.jus.br/eproc2trf4/externo_controlador.php` |
+
+O endpoint do STJ (`processo.stj.jus.br`) serve os mesmos resultados de pesquisa SCON que o
+`scon.stj.jus.br`, porém sem proteção Cloudflare Turnstile, permitindo acesso rápido e confiável
+via requisições HTTP diretas com codificação ISO-8859-1 adequada.
+
+## Requisitos
+
+- git
+- uv (recomendado) ou Python >= 3.12
+- Google Chrome (necessário para STF e TST; não é necessário para STJ)
+
+## Como usar
+
+1. Clone o repositório:
+```bash
+git clone https://github.com/pdmtt/jurismcp.git
+```
+
+2. Instale as dependências
+```bash
+uv run patchright install
+```
+
+3. Configure seu cliente MCP (ex: Claude Desktop):
+```json
+{
+  "mcpServers": {
+    "jurismcp": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/<caminho>/jurismcp",
+        "run",
+        "serve"
+      ]
+    }
+  }
+}
+```
+
+### Ferramentas Disponíveis
+
+- `StjLegalPrecedentsRequest`: Pesquisa precedentes judiciais do Superior Tribunal de Justiça (STJ)
+  que atendam aos critérios especificados. Utiliza HTTP POST direto para acesso rápido e confiável.
+- `TstLegalPrecedentsRequest`: Pesquisa precedentes judiciais do Tribunal Superior do Trabalho (TST)
+  que atendam aos critérios especificados.
+- `StfLegalPrecedentsRequest`: Pesquisa precedentes judiciais do Supremo Tribunal Federal (STF)
+  que atendam aos critérios especificados.
+- `BnpLegalPrecedentsRequest`: Pesquisa **precedentes qualificados** no Banco Nacional de
+  Precedentes do CNJ (BNP) — súmulas, súmulas vinculantes, temas de repercussão geral e
+  repetitivos, IRDR, IAC, IRR, PUIL, OJ e controle concentrado de 60+ tribunais, cada um com a
+  situação viva (Vigente/Afetado/Cancelado/...). Filtros opcionais: `tribunal`, `especie`,
+  `numero` e `incluir_cancelados`. Devolve a TESE fixada (e a questão submetida, quando
+  distinta), não ementas nem inteiros teores. API pública sem autenticação; sem browser.
+- `TnuLegalPrecedentsRequest`: Pesquisa a jurisprudência da Turma Nacional de Uniformização dos
+  Juizados Especiais Federais (TNU) na base do eproc. Campo opcional `campo`: `ementa` (padrão) ou
+  `inteiro_teor`. Devolve a ementa sem alteração, a decisão, a citação oficial e o link do inteiro
+  teor; 10 resultados por página, do mais recente para o mais antigo. HTTP direto; sem browser.
+- `Trf4LegalPrecedentsRequest`: Pesquisa a jurisprudência do TRF4, da Turma Regional de
+  Uniformização (TRU4) e das Turmas Recursais do RS, de SC e do PR. Campos opcionais `campo`
+  (`ementa`/`inteiro_teor`) e `origens` (`TRF4`, `TRU4`, `TR`; padrão: as três). O campo `court`
+  indica a origem de cada resultado; acórdãos de Turma Recursal (sem ementa) vêm com o inteiro teor
+  baixado em `full_text`, conferido pelo número do processo. HTTP direto; sem browser.
+
+### Operadores de Busca
+
+Cada tribunal suporta operadores de busca específicos para consultas mais precisas. Consulte as
+descrições das ferramentas para a sintaxe detalhada (ex.: `e`, `ou`, `não`, `adj`, `prox`, `$`,
+`?` para STJ; `E`, `OU`, `NÃO`, `"..."`, `"..."~N`, `$`, `?` para STF; `"..."`, `e`, `ou`, `não`,
+`prox` e `"prefixo*"` para TNU e TRF4, com E implícito entre os termos).
+
+## Desenvolvimento
+
+### Ferramentas
+
+O projeto utiliza:
+- Ruff para linting e formatação.
+- BasedPyright para verificação de tipos.
+- Pytest para testes.
+
+### Idioma
+
+Recursos, ferramentas e materiais relacionados a prompts devem ser escritos em português, pois este 
+projeto tem como objetivo ser utilizado por pessoas que não são desenvolvedoras, como advogados e 
+estudantes de direito.
+
+O vocabulário técnico jurídico é altamente dependente da tradição legal de um país e sua tradução 
+não é uma tarefa trivial.
+
+Materiais relacionados ao desenvolvimento devem permanecer em inglês, conforme convencional, como o 
+código-fonte.
+
+## Licença
+
+Este projeto está licenciado sob a Licença MIT - consulte o arquivo LICENSE para obter detalhes. 

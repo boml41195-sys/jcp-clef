@@ -1,0 +1,193 @@
+"""Scraper for the Tribunal de Justica do Amapa (TJAP)."""
+
+import pandas as pd
+
+from juscraper.core.http import HTTPScraper
+from juscraper.utils.params import apply_input_pipeline_search, resolve_deprecated_alias
+
+from .download import cjsg_download_manager
+from .parse import cjsg_parse_manager
+from .schemas import InputCJSGTJAP
+
+
+class TJAPScraper(HTTPScraper):
+    """Scraper for the Tribunal de Justica do Amapa (TJAP).
+
+    The TJAP uses the Tucujuris platform with a JSON REST API.
+    Currently supports jurisprudence search (CJSG).
+    """
+
+    BASE_URL = "https://tucujuris.tjap.jus.br"
+
+    def __init__(self):
+        super().__init__("TJAP")
+
+    def cpopg(self, id_cnj: str | list[str]):
+        """Stub: first instance case consultation not implemented for TJAP."""
+        raise NotImplementedError("Consulta de processos de 1o grau nao implementada para TJAP.")
+
+    def cposg(self, id_cnj: str | list[str]):
+        """Stub: second instance case consultation not implemented for TJAP."""
+        raise NotImplementedError("Consulta de processos de 2o grau nao implementada para TJAP.")
+
+    def cjsg(
+        self,
+        pesquisa: str | None = None,
+        paginas: int | list | range | None = None,
+        orgao: str = "0",
+        numero_processo: str | None = None,
+        numero_acordao: str | None = None,
+        numero_ano: str | None = None,
+        palavras_exatas: bool = False,
+        relator: str | None = None,
+        secretaria: str | None = None,
+        classe: str | None = None,
+        votacao: str = "0",
+        origem: str | None = None,
+        **kwargs,
+    ) -> pd.DataFrame:
+        """Search TJAP jurisprudence.
+
+        Parameters
+        ----------
+        pesquisa : str
+            Free-text search term.
+        paginas : int, list, range, or None
+            Pages to download (1-based). None downloads all.
+        orgao : str
+            ``"0"`` for all (default), ``"tj"`` for Tribunal, ``"recursal"`` for Turma Recursal.
+        numero_processo : str, optional
+            CNJ unique case number. Accepts the deprecated alias ``numero_cnj``.
+        numero_acordao : str, optional
+            Decision number.
+        numero_ano : str, optional
+            Number/year (e.g. ``"001858/1999"``).
+        palavras_exatas : bool
+            If True, search for exact words.
+        relator : str, optional
+            Reporting judge name.
+        secretaria : str, optional
+            Court division.
+        classe : str, optional
+            Procedural class.
+        votacao : str
+            ``"0"`` for all (default), ``"Unanime"``, ``"Maioria"``.
+        origem : str, optional
+            Origin (comarca).
+
+        Returns
+        -------
+        pd.DataFrame
+
+        Raises
+        ------
+        TJAPSecurityCheckError
+            Quando o TJAP devolve "A verificação de segurança falhou" — desde
+            ~2026 a busca exige um CAPTCHA Cloudflare Turnstile, validado
+            server-side, que o raspador HTTP não consegue produzir (issue #279).
+        TJAPApiError
+            Para qualquer outro envelope de erro (``status == "ERRO"``) do
+            Tucujuris. Busca com zero resultados devolve DataFrame vazio.
+        """
+        brutos = self.cjsg_download(
+            pesquisa=pesquisa,
+            paginas=paginas,
+            orgao=orgao,
+            numero_processo=numero_processo,
+            numero_acordao=numero_acordao,
+            numero_ano=numero_ano,
+            palavras_exatas=palavras_exatas,
+            relator=relator,
+            secretaria=secretaria,
+            classe=classe,
+            votacao=votacao,
+            origem=origem,
+            **kwargs,
+        )
+        return self.cjsg_parse(brutos)
+
+    def cjsg_download(
+        self,
+        pesquisa: str | None = None,
+        paginas: int | list | range | None = None,
+        orgao: str = "0",
+        numero_processo: str | None = None,
+        numero_acordao: str | None = None,
+        numero_ano: str | None = None,
+        palavras_exatas: bool = False,
+        relator: str | None = None,
+        secretaria: str | None = None,
+        classe: str | None = None,
+        votacao: str = "0",
+        origem: str | None = None,
+        **kwargs,
+    ) -> list:
+        """Download raw CJSG JSON responses from TJAP.
+
+        Parameters are the same as :meth:`cjsg`. ``numero_cnj`` is accepted
+        as a deprecated alias for ``numero_processo``.
+
+        Returns
+        -------
+        list
+            List of raw JSON responses (one per page).
+
+        Raises
+        ------
+        TJAPSecurityCheckError
+            Quando o TJAP devolve "A verificação de segurança falhou" (CAPTCHA
+            Cloudflare Turnstile exigido desde ~2026; issue #279).
+        TJAPApiError
+            Para qualquer outro envelope de erro (``status == "ERRO"``) do
+            Tucujuris. Busca com zero resultados devolve lista sem registros.
+        """
+        numero_processo = resolve_deprecated_alias(
+            kwargs, "numero_cnj", "numero_processo", numero_processo
+        )
+        inp = apply_input_pipeline_search(
+            InputCJSGTJAP,
+            "TJAPScraper.cjsg_download()",
+            pesquisa=pesquisa,
+            paginas=paginas,
+            kwargs=kwargs,
+            consume_pesquisa_aliases=True,
+            orgao=orgao,
+            numero_processo=numero_processo,
+            numero_acordao=numero_acordao,
+            numero_ano=numero_ano,
+            palavras_exatas=palavras_exatas,
+            relator=relator,
+            secretaria=secretaria,
+            classe=classe,
+            votacao=votacao,
+            origem=origem,
+        )
+        return cjsg_download_manager(
+            pesquisa=inp.pesquisa,
+            paginas=inp.paginas,
+            request_fn=self._request_with_retry,
+            orgao=inp.orgao,
+            numero_cnj=inp.numero_processo,
+            numero_acordao=inp.numero_acordao,
+            numero_ano=inp.numero_ano,
+            palavras_exatas=inp.palavras_exatas,
+            relator=inp.relator,
+            secretaria=inp.secretaria,
+            classe=inp.classe,
+            votacao=inp.votacao,
+            origem=inp.origem,
+        )
+
+    def cjsg_parse(self, resultados_brutos: list) -> pd.DataFrame:
+        """Parse downloaded CJSG JSON responses.
+
+        Parameters
+        ----------
+        resultados_brutos : list
+            List of raw JSON responses from the TJAP API.
+
+        Returns
+        -------
+        pd.DataFrame
+        """
+        return cjsg_parse_manager(resultados_brutos)

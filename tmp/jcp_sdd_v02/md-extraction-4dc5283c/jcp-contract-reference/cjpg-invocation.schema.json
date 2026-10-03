@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Budget": {
+      "additionalProperties": false,
+      "properties": {
+        "deadline_ms": {
+          "maximum": 600000,
+          "minimum": 1,
+          "title": "Deadline Ms",
+          "type": "integer"
+        },
+        "max_pages": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Pages",
+          "type": "integer"
+        },
+        "max_documents": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Max Documents",
+          "type": "integer"
+        },
+        "max_model_calls": {
+          "maximum": 30,
+          "minimum": 0,
+          "title": "Max Model Calls",
+          "type": "integer"
+        },
+        "max_repair_candidates": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Max Repair Candidates",
+          "type": "integer"
+        },
+        "max_download_bytes": {
+          "maximum": 100000000,
+          "minimum": 0,
+          "title": "Max Download Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "deadline_ms",
+        "max_pages",
+        "max_documents",
+        "max_model_calls",
+        "max_repair_candidates",
+        "max_download_bytes"
+      ],
+      "title": "Budget",
+      "type": "object"
+    },
+    "CjpgSearchArguments": {
+      "additionalProperties": false,
+      "properties": {
+        "query": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        },
+        "date_from": {
+          "format": "date",
+          "title": "Date From",
+          "type": "string"
+        },
+        "date_to": {
+          "format": "date",
+          "title": "Date To",
+          "type": "string"
+        },
+        "date_kind": {
+          "const": "availability",
+          "title": "Date Kind",
+          "type": "string"
+        },
+        "limit": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.:-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cursor"
+        }
+      },
+      "required": [
+        "query",
+        "date_from",
+        "date_to",
+        "date_kind",
+        "limit"
+      ],
+      "title": "CjpgSearchArguments",
+      "type": "object"
+    },
+    "Options": {
+      "additionalProperties": false,
+      "properties": {
+        "freshness": {
+          "default": "live",
+          "enum": [
+            "live",
+            "cached_if_fresh"
+          ],
+          "title": "Freshness",
+          "type": "string"
+        },
+        "max_age_ms": {
+          "default": 0,
+          "maximum": 86400000,
+          "minimum": 0,
+          "title": "Max Age Ms",
+          "type": "integer"
+        },
+        "transport": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "browser",
+            "http"
+          ],
+          "title": "Transport",
+          "type": "string"
+        },
+        "allow_partial": {
+          "default": true,
+          "title": "Allow Partial",
+          "type": "boolean"
+        },
+        "allow_repair": {
+          "default": true,
+          "title": "Allow Repair",
+          "type": "boolean"
+        }
+      },
+      "title": "Options",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": {
+      "const": "0.1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "request_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "capability_id": {
+      "const": "tjsp.cjpg.search_decisions",
+      "title": "Capability Id",
+      "type": "string"
+    },
+    "capability_version": {
+      "const": "1.0.0",
+      "title": "Capability Version",
+      "type": "string"
+    },
+    "installation_id": {
+      "const": "tjsp-esaj-cjpg",
+      "title": "Installation Id",
+      "type": "string"
+    },
+    "arguments": {
+      "$ref": "#/$defs/CjpgSearchArguments"
+    },
+    "session_ref": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Session Ref"
+    },
+    "options": {
+      "$ref": "#/$defs/Options"
+    },
+    "budget": {
+      "$ref": "#/$defs/Budget"
+    },
+    "idempotency_key": {
+      "maxLength": 200,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Idempotency Key",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "request_id",
+    "capability_id",
+    "capability_version",
+    "installation_id",
+    "arguments",
+    "session_ref",
+    "options",
+    "budget",
+    "idempotency_key"
+  ],
+  "title": "CjpgInvocation",
+  "type": "object"
+}

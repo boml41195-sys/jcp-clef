@@ -1,0 +1,40 @@
+Package: esaj
+Title: A scraper for all e-SAJ systems
+Version: 0.1.2.9000
+Authors@R: c(
+  person("C", "Lente", , "lente@ime.usp.br", role = c("aut", "cre")),
+  person("Fernando", "Correa", role = c("aut")),
+  person("Julio", "Trecenti", , "j@jtrecenti.com", c("aut")),
+  person("ABJ", role = c("cph", "fnd")))
+Description: A simple interface that allows you to download first and second
+  degree lawsuits from Brazils multiple e-SAJ portals.
+Depends: R (>= 3.2.3)
+License: GPL-2
+Imports:
+  magrittr,
+  dplyr,
+  httr,
+  jsonlite,
+  lubridate,
+  readr,
+  stringr,
+  tidyr,
+  xml2,
+  purrr,
+  progress,
+  tibble,
+  rvest,
+  rlang
+Suggests:
+  knitr,
+  rmarkdown,
+  testthat,
+  captchasaj,
+  magick,
+  tesseract,
+  V8,
+  decryptr
+VignetteBuilder: knitr
+LazyData: true
+RoxygenNote: 6.1.1
+Roxygen: list(markdown = TRUE, roclets = c("rd", "namespace", "collate"))

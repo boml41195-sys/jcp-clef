@@ -1,0 +1,723 @@
+"""Base class for eSAJ cjsg scrapers.
+
+Absorbs the constructor + ``cjsg``/``cjsg_download``/``cjsg_parse`` template
+shared by TJAC/TJAL/TJAM/TJCE/TJMS. Subclasses set ``BASE_URL`` and the
+pydantic input schema; TJSP adds a Chrome UA and conversationId
+propagation via class attributes.
+
+Hooks a subclass may override:
+
+* ``_configure_session`` — mount custom HTTPAdapter (TJCE TLS).
+* ``INPUT_CJSG`` — swap ``InputCJSGEsajPuro`` for a tribunal-specific
+  schema (TJSP uses ``InputCJSGTJSP`` which enforces a 120-char limit).
+"""
+from __future__ import annotations
+
+import logging
+import shutil
+import warnings
+from collections.abc import Callable
+from typing import Any, ClassVar, Literal
+
+import pandas as pd
+from pydantic import BaseModel, ValidationError
+
+from ...core.http import HTTPScraper
+from ...utils.params import (
+    DATE_ALIAS_TO_CANONICAL,
+    DATE_CANONICAL,
+    SEARCH_ALIASES,
+    apply_input_pipeline_search,
+    coerce_brazilian_date,
+    fill_open_ended_dates,
+    iter_date_windows,
+    normalize_datas,
+    normalize_pesquisa,
+    pop_normalize_aliases,
+    raise_on_extra_kwargs,
+    run_chunked_search,
+    validate_intervalo_datas,
+)
+from .download import _CHROME_HEADERS, _ESAJ_HEADERS, download_cjsg_pages, fetch_cjsg_first_page
+from .forms import build_cjsg_form_body
+from .parse import cjsg_n_pags, cjsg_n_results, cjsg_parse_manager, parse_arvore
+from .schemas import InputCJSGEsajPuro
+
+logger = logging.getLogger("juscraper._esaj.base")
+
+
+def _normalize_auto_chunk_dates(
+    input_cls: type[BaseModel],
+    kwargs: dict,
+) -> tuple[dict[str, Any], str, bool]:
+    """Normalize and coerce dates without consuming the caller's ``kwargs``."""
+    date_format = getattr(input_cls, "BACKEND_DATE_FORMAT", "%d/%m/%Y")
+    schema_field_names = set(input_cls.model_fields)
+    has_data_publicacao = {
+        "data_publicacao_inicio",
+        "data_publicacao_fim",
+    }.issubset(schema_field_names)
+
+    # ``normalize_datas`` sees a copy created by ``**kwargs``: it emits each
+    # deprecation warning once while leaving the caller's dictionary intact.
+    sniff = normalize_datas(**kwargs)
+
+    # Invalid values deliberately pass through so the canonical interval
+    # validator can raise the project's user-facing error.
+    for key in DATE_CANONICAL:
+        sniff[key] = coerce_brazilian_date(sniff[key], date_format)
+
+    return sniff, date_format, has_data_publicacao
+
+
+def _propagate_auto_chunk_noop_dates(kwargs: dict, sniff: dict[str, Any]) -> None:
+    """Canonicalize dates in ``kwargs`` before the downstream noop path."""
+    for alias in DATE_ALIAS_TO_CANONICAL:
+        kwargs.pop(alias, None)
+
+    kwargs["data_julgamento_inicio"] = sniff["data_julgamento_inicio"]
+    kwargs["data_julgamento_fim"] = sniff["data_julgamento_fim"]
+    for key in ("data_publicacao_inicio", "data_publicacao_fim"):
+        if sniff.get(key) is not None:
+            kwargs[key] = sniff[key]
+
+
+def run_auto_chunk(
+    *,
+    method: Callable[..., Any],
+    method_label: str,
+    input_cls: type[BaseModel],
+    dedup_key: str,
+    pesquisa: str,
+    paginas: Any,
+    kwargs: dict,
+) -> Any:
+    """Orquestra a busca auto-chunked pelo limite de janela do eSAJ (#130).
+
+    Consolida o boilerplate compartilhado entre :meth:`EsajSearchScraper.cjsg`
+    e :meth:`TJSPScraper.cjpg`:
+
+    1. Pop ``auto_chunk`` (default ``True``) — se ``False``, retorna ``None``.
+    2. Normaliza datas e emite uma vez o ``DeprecationWarning`` de cada
+       alias; os caminhos seguintes recebem apenas nomes canonicos.
+    3. Se a janela cabe em ``max_dias=366``, retorna ``None`` (caller cai no
+       caminho noop).
+    4. Normaliza ``query/termo`` e preserva o valor retornado antes do
+       :func:`pop_normalize_aliases` consumir o alias.
+    5. Pop aliases + canonicals de data, monta ``extras`` (dates
+       nao-julgamento sniffadas), valida o schema upfront para converter
+       ``extra_forbidden`` em ``TypeError`` cedo.
+    6. Constroi ``_fetch`` que delega de volta para ``method`` com
+       ``auto_chunk=False`` e os ``extras`` re-injetados em cada janela
+       (probe TJAC 2026-04: backend AND'a julgamento + publicacao).
+
+    Returns:
+        ``None`` quando o chunking nao se aplica (auto_chunk=False ou
+        janela curta) — caller deve seguir o caminho noop. Caso contrario,
+        retorna o ``pd.DataFrame`` deduplicado.
+
+    Side effects:
+        Sempre remove ``auto_chunk`` de ``kwargs``. No caminho noop,
+        canonicaliza datas no proprio dicionario; quando o chunking dispara,
+        remove aliases/canonicals ja absorvidos e os reinjeta nas chamadas
+        internas.
+    """
+    auto_chunk = kwargs.pop("auto_chunk", True)
+    if not auto_chunk:
+        return None
+
+    # ``fill_open_ended_dates`` emite ``UserWarning``. Auto-fill ANTES de
+    # ``iter_date_windows``: se ``_inicio`` chega ``None`` com ``_fim``
+    # preenchido, sem o fill ``iter_date_windows`` faria passthrough e o
+    # auto-chunk pularia exatamente o caso que precisa dividir.
+    sniff, date_format, has_data_publicacao = _normalize_auto_chunk_dates(input_cls, kwargs)
+
+    # Auto-fill depois da normalizacao para que ``UserWarning`` chegue uma vez.
+    fill_open_ended_dates(sniff, formato=date_format, rotulo="data_julgamento")
+    # Também preenche ``data_publicacao`` aqui — caso contrário, no caminho
+    # auto-chunk com N janelas o fill seria refeito dentro de cada chunk
+    # pelo ``apply_input_pipeline_search``, emitindo o ``UserWarning`` N
+    # vezes (uma por chunk, antes do filtro padrão do warnings deduplicar).
+    # Pre-fill aqui garante 1 warning total.
+    if has_data_publicacao:
+        fill_open_ended_dates(sniff, formato=date_format, rotulo="data_publicacao")
+
+    dj_i = sniff["data_julgamento_inicio"]
+    dj_f = sniff["data_julgamento_fim"]
+    windows = list(iter_date_windows(dj_i, dj_f, max_dias=366))
+    if len(windows) <= 1:
+        _propagate_auto_chunk_noop_dates(kwargs, sniff)
+        return None
+
+    if pesquisa or any(alias in kwargs for alias in SEARCH_ALIASES):
+        # CJPG permits an empty canonical search when only an alias was
+        # supplied, hence ``None`` rather than ``""`` in that case.
+        pesquisa = normalize_pesquisa(pesquisa or None, **kwargs)
+
+    pop_normalize_aliases(kwargs, include_canonical=True)
+    extras = {
+        k: v for k, v in sniff.items()
+        if v is not None and not k.startswith("data_julgamento")
+    }
+
+    try:
+        input_cls(
+            pesquisa=pesquisa,
+            paginas=paginas,
+            data_julgamento_inicio=dj_i,
+            data_julgamento_fim=dj_f,
+            **extras,
+            **kwargs,
+        )
+    except ValidationError as exc:
+        raise_on_extra_kwargs(exc, method_label)
+        raise
+
+    def _fetch(win_i: str | None, win_f: str | None) -> Any:
+        return method(
+            pesquisa=pesquisa,
+            paginas=None,
+            data_julgamento_inicio=win_i,
+            data_julgamento_fim=win_f,
+            auto_chunk=False,
+            **extras,
+            **kwargs,
+        )
+
+    return run_chunked_search(
+        _fetch,
+        data_inicio=dj_i,
+        data_fim=dj_f,
+        dedup_key=dedup_key,
+        max_dias=366,
+        paginas=paginas,
+        rotulo="data_julgamento",
+        origem="O eSAJ",
+    )
+
+
+class EsajSearchScraper(HTTPScraper):
+    """Shared scaffolding for eSAJ cjsg scrapers.
+
+    Class attributes:
+        BASE_URL: eSAJ root, e.g. ``https://esaj.tjac.jus.br/`` (must end
+            with ``/``).
+        TRIBUNAL_NAME: Used in logs and :attr:`BaseScraper.tribunal_name`.
+        INPUT_CJSG: Pydantic model validating ``cjsg`` inputs. Defaults to
+            :class:`InputCJSGEsajPuro`. TJSP overrides with its own model.
+        CJSG_CHROME_UA: TJSP only — sends the Chrome-flavoured UA that the
+            eSAJ form expects from browsers.
+        CJSG_EXTRACT_CONVERSATION_ID: TJSP only — capture ``conversationId``
+            from the first-page HTML and propagate to subsequent GETs.
+
+    Session lifecycle (issue #203):
+        ``self.session`` é criada por :class:`HTTPScraper.__init__`; o hook
+        :meth:`_configure_session` é chamado lá com a mesma assinatura.
+        Subclasses que sobrepõem o hook (TJCE para TLS) continuam funcionando
+        sem alteração.
+    """
+
+    BASE_URL: str = ""
+    TRIBUNAL_NAME: str = ""
+    INPUT_CJSG: type[BaseModel] = InputCJSGEsajPuro
+    CJSG_CHROME_UA: bool = False
+    CJSG_EXTRACT_CONVERSATION_ID: bool = False
+
+    # Arvores de selecao do eSAJ (classes/assuntos/orgaos), uma por chave
+    # ``<arvore>_<grau>``, relativas a BASE_URL. O sufixo de grau permite o
+    # TJSP estender com as arvores de 1o grau (cjpg) sem if/else. Todos os
+    # tribunais eSAJ expoem as arvores de cjsg (2o grau); cjpg so existe no
+    # TJSP hoje, entao as entradas ``_1`` ficam no TJSPScraper. Refs #228.
+    TREE_ENDPOINTS: ClassVar[dict[str, str]] = {
+        "classes_2": "cjsg/classesTreeSelect.do?campoId=classes",
+        "assuntos_2": "cjsg/assuntosTreeSelect.do?campoId=assuntos",
+        "orgaos_2": "cjsg/secaoTreeSelect.do?campoId=secoes",
+    }
+
+    def __init__(
+        self,
+        verbose: int = 0,
+        download_path: str | None = None,
+        sleep_time: float = 1.0,
+        **kwargs: Any,
+    ):
+        if not self.BASE_URL:
+            raise NotImplementedError(
+                f"{type(self).__name__} must set BASE_URL as a class attribute."
+            )
+        super().__init__(
+            self.TRIBUNAL_NAME or type(self).__name__,
+            verbose=verbose,
+            download_path=download_path,
+            sleep_time=sleep_time,
+            **kwargs,
+        )
+
+    # --- search template ------------------------------------------------
+
+    def _run_search(
+        self,
+        *,
+        endpoint: Literal["cjsg", "cjpg"],
+        input_cls: type[BaseModel],
+        dedup_key: str,
+        pesquisa: str,
+        paginas: int | list | range | None,
+        kwargs: dict,
+        pre_normalize: Callable[[dict], None] | None = None,
+    ) -> pd.DataFrame | int:
+        """Template Method que orquestra um endpoint de busca eSAJ (refs #205).
+
+        Compartilhado por :meth:`cjsg` e :meth:`TJSPScraper.cjpg`. O fluxo —
+        probe ``count_only`` -> auto-chunk -> download -> parse -> cleanup do
+        diretorio temporario — e identico entre os dois endpoints. O que
+        diverge (schema, chave de dedup, normalizacao previa, metodos de
+        download/parse/count) entra por parametro ou e resolvido por nome via
+        ``getattr``, mantendo este metodo agnostico a HTTP e parsing.
+
+        Args:
+            endpoint: ``"cjsg"`` ou ``"cjpg"`` — o vocabulario que esta
+                infra sabe orquestrar, nao a capability por tribunal (quais
+                endpoints cada scraper expoe depende da presenca do metodo:
+                so o TJSP tem ``cjpg``). Resolve os hooks
+                ``<endpoint>_download``, ``<endpoint>_parse`` e
+                ``_<endpoint>_count_only`` por ``getattr(self, ...)``.
+            input_cls: Schema pydantic do endpoint (``INPUT_CJSG`` /
+                ``INPUT_CJPG``), repassado ao auto-chunk.
+            dedup_key: Coluna usada para deduplicar resultados cross-janela no
+                auto-chunk (``cd_acordao`` no cjsg, ``id_processo`` no cjpg).
+            pre_normalize: Hook opcional aplicado a ``kwargs`` antes de tudo —
+                cjpg usa para popar os aliases plurais (#232).
+
+        Returns:
+            ``pd.DataFrame`` com os resultados parseados, ou ``int`` quando
+            ``count_only=True``.
+        """
+        if pre_normalize is not None:
+            pre_normalize(kwargs)
+
+        # count_only=True: probe leve antes do run_auto_chunk (issue #92).
+        # auto_chunk soma DataFrames com dedup; count_only soma ints brutos.
+        if kwargs.get("count_only", False):
+            count_probe = getattr(self, f"_{endpoint}_count_only")
+            return count_probe(pesquisa=pesquisa, paginas=paginas, **kwargs)
+
+        chunked = run_auto_chunk(
+            method=getattr(self, endpoint),
+            method_label=f"{type(self).__name__}.{endpoint}()",
+            input_cls=input_cls,
+            dedup_key=dedup_key,
+            pesquisa=pesquisa,
+            paginas=paginas,
+            kwargs=kwargs,
+        )
+        if chunked is not None:
+            return chunked
+
+        download = getattr(self, f"{endpoint}_download")
+        parse = getattr(self, f"{endpoint}_parse")
+        path = download(pesquisa=pesquisa, paginas=paginas, **kwargs)
+        try:
+            return parse(path)
+        finally:
+            shutil.rmtree(path, ignore_errors=True)
+
+    # --- cjsg -----------------------------------------------------------
+
+    def cjsg(
+        self,
+        pesquisa: str,
+        paginas: int | list | range | None = None,
+        **kwargs: Any,
+    ):
+        """Pesquisa jurisprudencia de segundo grau do tribunal (CJSG).
+
+        Delega para :meth:`cjsg_download` + :meth:`cjsg_parse` e remove o
+        diretorio temporario antes de retornar.
+
+        Args:
+            pesquisa (str): Termo livre buscado no acordao/ementa.
+            paginas (int | list | range | None): Paginas 1-based;
+                ``None`` baixa todas. Default ``None``.
+            **kwargs: Filtros aceitos pelo schema configurado em
+                :attr:`INPUT_CJSG` (default :class:`InputCJSGEsajPuro`,
+                herdado por TJAC/TJAL/TJAM/TJCE/TJMS). Subclasses podem
+                trocar ``INPUT_CJSG`` e mudar a lista de filtros — TJSP
+                usa :class:`InputCJSGTJSP`. Filtros do schema padrao
+                (todos opcionais; ``None`` = sem filtro):
+
+                * ``ementa`` (str): Termo buscado especificamente na
+                  ementa.
+                * ``numero_recurso`` (str): Numero do recurso.
+                * ``classe`` (int | str | list[int | str]): ID(s) interno(s)
+                  da classe processual. Backend:
+                  ``classesTreeSelection.values`` (CSV).
+                * ``assunto`` (int | str | list[int | str]): ID(s) interno(s)
+                  do assunto. Backend: ``assuntosTreeSelection.values``
+                  (CSV).
+                * ``comarca`` (int | str): ID interno da comarca. Backend:
+                  ``cdComarca`` (single-value, nao aceita lista).
+                * ``orgao_julgador`` (int | str | list[int | str]): ID(s)
+                  interno(s) do orgao julgador. Backend:
+                  ``secoesTreeSelection.values`` (CSV).
+                * ``origem`` (Literal["T", "R"]): ``"T"`` (segundo grau,
+                  default) ou ``"R"`` (colegio recursal).
+                * ``tipo_decisao`` (Literal["acordao", "monocratica"]):
+                  Default ``"acordao"``.
+                * ``data_julgamento_inicio`` / ``data_julgamento_fim``
+                  (str, ``DD/MM/AAAA``): Intervalo de julgamento.
+                * ``data_publicacao_inicio`` / ``data_publicacao_fim``
+                  (str, ``DD/MM/AAAA``): Intervalo de publicacao.
+                * ``auto_chunk`` (bool): Default ``True``. Quando o
+                  intervalo ``data_julgamento_*`` excede 366 dias,
+                  divide internamente em janelas, baixa cada uma e
+                  concatena com dedup por ``cd_acordao``. Veja a secao
+                  "Auto-chunking" abaixo.
+                * ``count_only`` (bool): Default ``False``. Se ``True``,
+                  faz so a chamada inicial da pagina 1, extrai o total
+                  de resultados via ``cjsg_n_results`` e retorna ``int``
+                  em vez de ``pd.DataFrame``. Util pra estimar wall-clock
+                  antes de uma coleta longa (issue #92). Com
+                  ``auto_chunk=True`` + janela > 366 dias, itera janelas
+                  disjuntas e soma — **soma bruta** (sem dedup por
+                  ``cd_acordao``), pode divergir ligeiramente de
+                  ``len(cjsg(...))`` quando ha acordaos republicados.
+                  ``paginas`` e ignorado (emite ``UserWarning``).
+
+        Aliases deprecados (popados com ``DeprecationWarning`` antes do
+        pydantic):
+
+            * ``query`` / ``termo`` -> ``pesquisa``
+            * ``data_inicio`` / ``data_fim`` -> ``data_julgamento_inicio`` / ``_fim``
+            * ``data_julgamento_de`` / ``_ate`` -> ``data_julgamento_inicio`` / ``_fim``
+            * ``data_publicacao_de`` / ``_ate`` -> ``data_publicacao_inicio`` / ``_fim``
+
+        Raises:
+            TypeError: Quando um kwarg desconhecido e passado (via
+                :func:`raise_on_extra_kwargs`).
+            ValidationError: Quando um filtro tem formato invalido.
+
+        Returns:
+            pd.DataFrame | int: Resultados parseados (colunas conforme
+            :class:`OutputCJSGEsaj` — ``processo``, ``ementa``, ``relator``
+            via mixin, ``data_publicacao`` via mixin, ``cd_acordao``,
+            ``cd_foro``); ``int`` com o total de resultados quando
+            ``count_only=True``.
+
+        Exemplo:
+            >>> import juscraper as jus
+            >>> tjac = jus.scraper("tjac")
+            >>> df = tjac.cjsg("dano moral", paginas=range(1, 3),
+            ...                data_julgamento_inicio="01/01/2024")
+            >>> # Estimativa pre-scraping (issue #92):
+            >>> n = tjac.cjsg("dano moral", count_only=True)
+
+        See also:
+            :class:`InputCJSGEsajPuro` (ou
+            :class:`~juscraper.courts.tjsp.schemas.InputCJSGTJSP`) —
+            schema pydantic e a fonte da verdade dos filtros aceitos.
+
+        Auto-chunking (issue #130):
+            Se ``auto_chunk=True`` (default herdado de
+            :class:`~juscraper.schemas.AutoChunkMixin`) e o intervalo
+            ``data_julgamento_*`` exceder 366 dias, a busca e dividida em
+            janelas internas, baixadas e concatenadas com dedup por
+            ``cd_acordao``. Falhas por janela viram :class:`UserWarning`
+            (parcial + warning). ``auto_chunk=True`` + ``paginas != None``
+            em janela > 366 dias e :class:`ValueError`. Para o
+            comportamento estrito antigo (``ValueError`` em janelas
+            longas), passe ``auto_chunk=False``.
+        """
+        return self._run_search(
+            endpoint="cjsg",
+            input_cls=self.INPUT_CJSG,
+            dedup_key="cd_acordao",
+            pesquisa=pesquisa,
+            paginas=paginas,
+            kwargs=kwargs,
+        )
+
+    def _cjsg_count_only(
+        self,
+        pesquisa: str,
+        paginas: int | list | range | None,
+        **kwargs: Any,
+    ) -> int:
+        """Probe leve para ``cjsg(count_only=True)`` — refs #92.
+
+        Faz POST + GET da primeira pagina por janela, extrai ``n_results``
+        via :func:`cjsg_n_results` e retorna a soma. ``paginas`` e
+        ignorado (count_only sempre olha a pagina 1).
+
+        Multi-janela: se o intervalo ``data_julgamento_*`` excede 366 dias
+        e ``auto_chunk=True`` (default), itera janelas disjuntas
+        (:func:`iter_date_windows`) e soma. ``auto_chunk=False`` + janela
+        > 366 dias levanta :class:`ValueError` (mesmo comportamento do
+        caminho normal). Intervalo ``data_publicacao_*`` > 366 dias tambem
+        levanta :class:`ValueError` em qualquer ``auto_chunk`` — auto-chunk
+        so pivota em ``data_julgamento``, entao publicacao precisa ser
+        validada explicitamente para consistencia com o caminho normal.
+
+        **Fail-fast no auto-chunk**: diferente do caminho normal
+        (:func:`run_auto_chunk`), que tolera falha por janela como
+        :class:`UserWarning` e devolve resultado parcial deduplicado, este
+        probe usa ``sum()`` — qualquer :class:`ValueError` em uma janela
+        aborta toda a iteracao. Decisao deliberada: estimativa parcial sem
+        aviso seria pior que erro explicito.
+        """
+        if paginas is not None:
+            warnings.warn(
+                "paginas e ignorado quando count_only=True (probe sempre olha so a pagina 1).",
+                UserWarning,
+                stacklevel=3,
+            )
+
+        # Validacao do schema com max_dias=None — vamos iterar janelas
+        # manualmente ou disparar ValueError abaixo conforme auto_chunk.
+        # ``consume_pesquisa_aliases=True`` deixa o helper consumir
+        # ``query``/``termo`` em uma unica passagem; sem ``nullable_pesquisa``
+        # porque o caminho normal de cjsg tambem nao aceita pesquisa vazia
+        # sem filtro (excecao TJSP, onde a chamada parte com ``pesquisa=""``
+        # e seguiria pelo mesmo fluxo do caminho normal).
+        input_model = apply_input_pipeline_search(
+            self.INPUT_CJSG,
+            f"{type(self).__name__}.cjsg(count_only=True)",
+            pesquisa=pesquisa,
+            paginas=None,
+            kwargs=kwargs,
+            consume_pesquisa_aliases=True,
+            max_dias=None,
+            origem_mensagem="O eSAJ",
+        )
+
+        di = input_model.data_julgamento_inicio
+        df_ = input_model.data_julgamento_fim
+        auto_chunk = input_model.auto_chunk
+        tipo_decisao = input_model.tipo_decisao
+
+        # ``data_publicacao_*`` existe so em InputCJSGEsajPuro (via
+        # DataPublicacaoMixin); InputCJSGTJSP nao herda. ``getattr`` cobre
+        # ambos os schemas sem ramo if/else.
+        dp_i = getattr(input_model, "data_publicacao_inicio", None)
+        dp_f = getattr(input_model, "data_publicacao_fim", None)
+
+        # auto_chunk=False + janela > 366d: replicar o ValueError do caminho
+        # normal para consistencia. validate_intervalo_datas tolera None.
+        # ``data_julgamento`` so quando auto_chunk=False (auto_chunk=True
+        # divide em janelas). ``data_publicacao`` sempre, porque auto-chunk
+        # nao pivota em publicacao — caminho normal valida nos dois fluxos.
+        if not auto_chunk:
+            validate_intervalo_datas(
+                di, df_, max_dias=366, rotulo="data_julgamento", origem="O eSAJ",
+            )
+        validate_intervalo_datas(
+            dp_i, dp_f, max_dias=366, rotulo="data_publicacao", origem="O eSAJ",
+        )
+
+        def _probe(win_i: str | None, win_f: str | None) -> int:
+            body_input = input_model.model_copy(update={
+                "data_julgamento_inicio": win_i,
+                "data_julgamento_fim": win_f,
+            })
+            body = self._build_cjsg_body(body_input)
+            html = fetch_cjsg_first_page(
+                scraper=self,
+                base_url=self.BASE_URL,
+                body=body,
+                tipo_decisao=tipo_decisao,
+                sleep_time=self.sleep_time,
+                chrome_ua=self.CJSG_CHROME_UA,
+            )
+            return cjsg_n_results(html)
+
+        if not auto_chunk or di is None or df_ is None:
+            return _probe(di, df_)
+
+        return sum(_probe(win_i, win_f) for win_i, win_f in iter_date_windows(di, df_, max_dias=366))
+
+    def cjsg_download(
+        self,
+        pesquisa: str,
+        paginas: int | list | range | None = None,
+        diretorio: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        """Baixa as paginas HTML brutas do CJSG (sem parsear).
+
+        Faz o GET inicial, extrai o numero de paginas, paga o resto e
+        salva todos os HTMLs em disco. Aceita os mesmos filtros de
+        :meth:`cjsg`; consulte la a lista completa.
+
+        Args:
+            pesquisa (str): Termo livre buscado.
+            paginas (int | list | range | None): Paginas 1-based;
+                ``None`` baixa todas. Default ``None``.
+            diretorio (str | None): Sobrescreve :attr:`download_path`
+                para esta unica chamada. Default ``None``.
+            **kwargs: Mesmos filtros aceitos por :meth:`cjsg` (validados
+                por :attr:`INPUT_CJSG`). Veja a docstring de :meth:`cjsg`
+                para a lista detalhada e os aliases deprecados.
+
+        Raises:
+            TypeError: Quando um kwarg desconhecido e passado.
+            ValidationError: Quando um filtro tem formato invalido.
+
+        Returns:
+            str: Caminho do diretorio onde os HTMLs foram salvos.
+        """
+        pesquisa = normalize_pesquisa(pesquisa, **kwargs)
+
+        input_model = apply_input_pipeline_search(
+            self.INPUT_CJSG,
+            f"{type(self).__name__}.cjsg_download()",
+            pesquisa=pesquisa,
+            paginas=paginas,
+            kwargs=kwargs,
+            max_dias=366,
+            origem_mensagem="O eSAJ",
+        )
+
+        body = self._build_cjsg_body(input_model)
+
+        return download_cjsg_pages(
+            scraper=self,
+            base_url=self.BASE_URL,
+            download_path=diretorio or self.download_path,
+            body=body,
+            tipo_decisao=getattr(input_model, "tipo_decisao", "acordao"),
+            paginas=input_model.paginas,
+            get_n_pags_callback=cjsg_n_pags,
+            sleep_time=self.sleep_time,
+            chrome_ua=self.CJSG_CHROME_UA,
+            extract_conversation_id=self.CJSG_EXTRACT_CONVERSATION_ID,
+            progress_desc=f"Baixando CJSG {self.tribunal_name}",
+        )
+
+    def cjsg_parse(self, path: str):
+        """Parse downloaded ``cjsg`` HTML files into a ``pd.DataFrame``."""
+        return cjsg_parse_manager(path)
+
+    # --- arvores de selecao (classes/assuntos/orgaos/varas) -------------
+
+    def _listar_arvore(self, tree_key: str) -> "pd.DataFrame":
+        """Baixa e parseia uma arvore de selecao do eSAJ.
+
+        Faz um unico GET no endpoint ``*TreeSelect.do`` correspondente a
+        ``tree_key`` (a arvore inteira vem numa resposta so) e delega o parse
+        para :func:`juscraper.courts._esaj.parse.parse_arvore`.
+
+        Args:
+            tree_key: Chave em :attr:`TREE_ENDPOINTS` (ex.: ``"classes_2"``).
+
+        Raises:
+            ValueError: Quando ``tree_key`` nao existe em
+                :attr:`TREE_ENDPOINTS` deste tribunal (ex.: pedir uma arvore
+                de 1o grau num tribunal que so tem cjsg).
+
+        Returns:
+            pd.DataFrame: Colunas ``id``, ``nome``, ``id_pai``, ``nivel``,
+            ``selecionavel``, ``caminho``.
+        """
+        rel = self.TREE_ENDPOINTS.get(tree_key)
+        if rel is None:
+            disponiveis = ", ".join(sorted(self.TREE_ENDPOINTS)) or "(nenhuma)"
+            raise ValueError(
+                f"{self.tribunal_name} nao expoe a arvore '{tree_key}'. "
+                f"Arvores disponiveis: {disponiveis}."
+            )
+        headers = _CHROME_HEADERS if self.CJSG_CHROME_UA else _ESAJ_HEADERS
+        resp = self._request_with_retry("GET", f"{self.BASE_URL}{rel}", headers=headers, timeout=60)
+        # Os endpoints *TreeSelect.do mandam UTF-8 no header (diferente das
+        # paginas de resultado do cjsg, que sao latin-1). Respeita o header e,
+        # se faltar charset, cai no sniff do chardet. Refs #228.
+        resp.encoding = resp.encoding or resp.apparent_encoding
+        return parse_arvore(resp.text)
+
+    def listar_classes(self, *, grau: str = "2") -> "pd.DataFrame":
+        """Lista as classes processuais disponiveis para filtrar.
+
+        Baixa a arvore de classes do eSAJ para descobrir os IDs aceitos pelo
+        filtro ``classe`` de :meth:`cjsg` (e ``classe`` de ``cjpg`` no TJSP).
+
+        Args:
+            grau: ``"2"`` (segundo grau / cjsg, default) ou ``"1"`` (primeiro
+                grau / cjpg). Apenas o TJSP expoe ``grau="1"``.
+
+        Raises:
+            ValueError: Quando ``grau`` nao esta disponivel neste tribunal.
+
+        Returns:
+            pd.DataFrame: Arvore de classes (colunas ``id``, ``nome``,
+            ``id_pai``, ``nivel``, ``selecionavel``, ``caminho``). So as
+            linhas com ``selecionavel=True`` valem como filtro.
+
+        Exemplo:
+            >>> import juscraper as jus
+            >>> tjsp = jus.scraper("tjsp")
+            >>> classes = tjsp.listar_classes()
+            >>> classes.loc[classes["selecionavel"], ["id", "nome"]].head()
+        """
+        return self._listar_arvore(f"classes_{grau}")
+
+    def listar_assuntos(self, *, grau: str = "2") -> "pd.DataFrame":
+        """Lista os assuntos disponiveis para filtrar.
+
+        Baixa a arvore de assuntos do eSAJ para descobrir os IDs aceitos pelo
+        filtro ``assunto`` de :meth:`cjsg` (e ``assunto`` de ``cjpg`` no TJSP).
+
+        Args:
+            grau: ``"2"`` (segundo grau / cjsg, default) ou ``"1"`` (primeiro
+                grau / cjpg). Apenas o TJSP expoe ``grau="1"``.
+
+        Raises:
+            ValueError: Quando ``grau`` nao esta disponivel neste tribunal.
+
+        Returns:
+            pd.DataFrame: Arvore de assuntos (mesmas colunas de
+            :meth:`listar_classes`). So as linhas com ``selecionavel=True``
+            valem como filtro.
+        """
+        return self._listar_arvore(f"assuntos_{grau}")
+
+    def listar_orgaos(self, *, grau: str = "2") -> "pd.DataFrame":
+        """Lista os orgaos julgadores (secoes) de segundo grau.
+
+        Baixa a arvore de secoes do eSAJ para descobrir os IDs aceitos pelo
+        filtro ``orgao_julgador`` de :meth:`cjsg`. So existe no segundo grau.
+
+        Args:
+            grau: ``"2"`` (segundo grau / cjsg). Unico valor aceito.
+
+        Raises:
+            ValueError: Quando ``grau`` nao esta disponivel neste tribunal.
+
+        Returns:
+            pd.DataFrame: Arvore de orgaos julgadores (mesmas colunas de
+            :meth:`listar_classes`).
+        """
+        return self._listar_arvore(f"orgaos_{grau}")
+
+    def _build_cjsg_body(self, inp: BaseModel) -> dict:
+        """Convert the validated pydantic input into the eSAJ form body.
+
+        Default builder assumes :class:`InputCJSGEsajPuro`. TJSP overrides
+        because its body drops ``conversationId``/``dtPublicacao*`` and
+        swaps ``origem`` for ``baixar_sg``.
+        """
+        data = inp.model_dump()
+        body: dict = build_cjsg_form_body(
+            pesquisa=data["pesquisa"],
+            ementa=data.get("ementa"),
+            numero_recurso=data.get("numero_recurso"),
+            classe=data.get("classe"),
+            assunto=data.get("assunto"),
+            comarca=data.get("comarca"),
+            orgao_julgador=data.get("orgao_julgador"),
+            data_julgamento_inicio=data.get("data_julgamento_inicio"),
+            data_julgamento_fim=data.get("data_julgamento_fim"),
+            data_publicacao_inicio=data.get("data_publicacao_inicio"),
+            data_publicacao_fim=data.get("data_publicacao_fim"),
+            origem=data.get("origem", "T"),
+            tipo_decisao=data.get("tipo_decisao", "acordao"),
+        )
+        return body

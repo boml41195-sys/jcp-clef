@@ -1,0 +1,16 @@
+{
+  "zip": "C:\\Users\\100OS\\Downloads\\LOPS OS DEFINITIVO\\JCP-SDD-v0.2-2026-10-03.zip",
+  "markdown_files": 16,
+  "words_including_code": 31871,
+  "internal_links_checked": 35,
+  "json_blocks_parsed": 16,
+  "python_blocks_syntax_checked": 5,
+  "contract_tests_from_extracted_markdown": 34,
+  "schemas_match_embedded_models": true,
+  "schema_refs_resolved": true,
+  "conceptual_examples_match_executable_contracts": true,
+  "zip_integrity_verified": true,
+  "zip_bytes": 97910,
+  "sha256": "d1238e43e12b7ffcf16efc2584d18ea5c9ece9f68ca2216c722f39d05281de47",
+  "runtime_or_portal_tests_executed": false
+}

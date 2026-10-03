@@ -1,0 +1,168 @@
+project:
+  type: website
+  output-dir: _site
+
+encoding: utf8
+
+lang: pt
+
+website:
+  title: "juscraper"
+  page-navigation: true
+  site-url: https://jtrecenti.github.io/juscraper/
+  description: "Raspador de tribunais e outros sistemas relacionados ao poder judiciário."
+
+  repo-url: https://github.com/jtrecenti/juscraper/
+  repo-actions: [issue, edit]
+  repo-subdir: docs
+
+  navbar:
+    background: "#005f73"
+    search: true
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "Referência da API"
+        href: reference/index.qmd
+    right:
+      - icon: github
+        href: https://github.com/jtrecenti/juscraper
+        aria-label: GitHub repository
+
+  page-footer:
+    left: |
+      Copyright 2025, Julio Trecenti
+
+  sidebar:
+    - id: "juscraper"
+      title: "Documentação"
+      style: "floating"
+      contents:
+        - href: index.qmd
+          text: "Home"
+        - href: reference/index.qmd
+          text: "Referência da API"
+        - section: "Exemplos"
+          contents:
+            - section: "Tribunais"
+              contents:
+                - href: notebooks/tjac.ipynb
+                  text: "TJAC"
+                - href: notebooks/tjal.ipynb
+                  text: "TJAL"
+                - href: notebooks/tjam.ipynb
+                  text: "TJAM"
+                - href: notebooks/tjap.ipynb
+                  text: "TJAP"
+                - href: notebooks/tjce.ipynb
+                  text: "TJCE"
+                - href: notebooks/tjba.ipynb
+                  text: "TJBA"
+                - href: notebooks/tjdft.ipynb
+                  text: "TJDFT"
+                - href: notebooks/tjgo.ipynb
+                  text: "TJGO"
+                - href: notebooks/tjmt.ipynb
+                  text: "TJMT"
+                - href: notebooks/tjpa.ipynb
+                  text: "TJPA"
+                - href: notebooks/tjpb.ipynb
+                  text: "TJPB"
+                - href: notebooks/tjpe.ipynb
+                  text: "TJPE"
+                - href: notebooks/tjpi.ipynb
+                  text: "TJPI"
+                - href: notebooks/tjpr.ipynb
+                  text: "TJPR"
+                - href: notebooks/tjrn.ipynb
+                  text: "TJRN"
+                - href: notebooks/tjro.ipynb
+                  text: "TJRO"
+                - href: notebooks/tjrr.ipynb
+                  text: "TJRR"
+                - href: notebooks/tjrj.ipynb
+                  text: "TJRJ"
+                - href: notebooks/tjrs.ipynb
+                  text: "TJRS"
+                - href: notebooks/tjsc.ipynb
+                  text: "TJSC"
+                - href: notebooks/tjes.ipynb
+                  text: "TJES"
+                - href: notebooks/tjto.ipynb
+                  text: "TJTO"
+                - href: notebooks/tjmg.ipynb
+                  text: "TJMG"
+                - href: notebooks/tjms.ipynb
+                  text: "TJMS"
+                - href: notebooks/tjsp.ipynb
+                  text: "TJSP"
+                - href: notebooks/trf3.ipynb
+                  text: "TRF3"
+                - href: notebooks/trf5.ipynb
+                  text: "TRF5"
+                - href: notebooks/trf6.ipynb
+                  text: "TRF6"
+            - section: "Agregadores"
+              contents:
+                - href: notebooks/datajud.ipynb
+                  text: "Datajud"
+                - href: notebooks/jusbr.ipynb
+                  text: "Jus.br"
+                - href: notebooks/pdpj.ipynb
+                  text: "PDPJ"
+
+format:
+  html:
+    theme: cosmo
+    css: reference/_styles-quartodoc.css
+    toc: true
+    toc-depth: 3
+
+quartodoc:
+  package: juscraper
+  title: "Referência da API"
+  sidebar: reference/_sidebar.yml
+  parser: google
+  render_interlinks: true
+  sections:
+    - title: Função Principal
+      desc: "Interface pública para acessar os scrapers."
+      contents:
+        - scraper
+    - title: Scrapers de Agregadores
+      desc: "Classes para coletar dados de agregadores de jurisprudência."
+      contents:
+        - aggregators.datajud.client.DatajudScraper
+        - aggregators.jusbr.client.JusbrScraper
+        - aggregators.pdpj.client.PdpjScraper
+    - title: Scrapers de Tribunais
+      desc: "Classes para coletar dados de tribunais específicos."
+      contents:
+        - courts.tjac.client.TJACScraper
+        - courts.tjal.client.TJALScraper
+        - courts.tjam.client.TJAMScraper
+        - courts.tjap.client.TJAPScraper
+        - courts.tjce.client.TJCEScraper
+        - courts.tjba.client.TJBAScraper
+        - courts.tjgo.client.TJGOScraper
+        - courts.tjsp.client.TJSPScraper
+        - courts.tjdft.client.TJDFTScraper
+        - courts.tjrs.client.TJRSScraper
+        - courts.tjpa.client.TJPAScraper
+        - courts.tjpr.client.TJPRScraper
+        - courts.tjpe.client.TJPEScraper
+        - courts.tjmt.client.TJMTScraper
+        - courts.tjes.client.TJESScraper
+        - courts.tjmg.client.TJMGScraper
+        - courts.tjms.client.TJMSScraper
+        - courts.tjto.client.TJTOScraper
+        - courts.tjpb.client.TJPBScraper
+        - courts.tjpi.client.TJPIScraper
+        - courts.tjrj.client.TJRJScraper
+        - courts.tjrn.client.TJRNScraper
+        - courts.tjro.client.TJROScraper
+        - courts.tjrr.client.TJRRScraper
+        - courts.tjsc.client.TJSCScraper
+        - courts.trf3.client.TRF3Scraper
+        - courts.trf5.client.TRF5Scraper
+        - courts.trf6.client.TRF6Scraper

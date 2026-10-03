@@ -1,0 +1,159 @@
+---
+title: "juscraper"
+---
+
+Raspador de tribunais e outros sistemas relacionados ao poder judiciário brasileiro.
+
+## Instalação
+
+### Via PyPI (Recomendado)
+
+```bash
+pip install juscraper
+```
+
+### Com uv
+
+```bash
+uv add juscraper
+```
+
+### Versão de Desenvolvimento
+
+Para instalar a versão mais recente do repositório:
+
+```bash
+pip install git+https://github.com/jtrecenti/juscraper.git
+```
+
+## Como usar
+
+```python
+import juscraper as jus
+
+tjsp = jus.scraper('tjsp')
+dados_cjpg = tjsp.cjpg('league of legends', paginas=range(1, 4))
+
+dados_cjpg.head(3)
+```
+
+O pacote foi pensado para atender a requisitos básicos de consulta de dados de processos judiciais em alguns tribunais.
+
+Os tribunais implementados vão apresentar os seguintes métodos:
+
+- `.cpopg()`: consulta de processos originários do primeiro grau
+- `.cposg()`: consulta de processos originários do segundo grau
+- `.cjsg()`: consulta de jurisprudência
+
+Os métodos `.cpopg()` e `.cposg()` recebem como *input* um número de processo no padrão CNJ (NNNNNNN-DD.AAAA.J.TT.OOOO), com ou sem separadores, e retorna um `dict` com tabelas dos elementos do processo (dados básicos, partes, movimentações, entre outros específicos por tribunal).
+
+O método `.cjsg()` recebe como *input* parâmetros de busca de jurisprudência (que variam por tribunal) e retorna uma tabela com os resultados da consulta. Boa parte dos tribunais apresentam limites de paginação ao realizar buscas muito gerais (i.e. que retornam muitos resultados). Nesses casos, o método dará um aviso ao usuário com o número total de resultados, confirmando se deseja mesmo baixar todos os resultados.
+
+## Implementações
+
+### Tribunais Disponíveis
+
+| Tribunal | Funcionalidades Disponíveis       |
+|----------|-----------------------------------|
+| TJAC     | cjsg                              |
+| TJAL     | cjsg                              |
+| TJAM     | cjsg                              |
+| TJAP     | cjsg ⚠️                           |
+| TJCE     | cjsg                              |
+| TJBA     | cjsg                              |
+| TJGO     | cjsg                              |
+| TJMG     | cjsg                              |
+| TJSP     | cpopg, cposg, cjsg, cjpg, acordao |
+| TJRS     | cjsg                              |
+| TJPR     | cjsg                              |
+| TJPE     | cjsg, cpopg                       |
+| TJES     | cjsg, cjpg                        |
+| TJMS     | cjsg                              |
+| TJDFT    | cjsg                              |
+| TJPA     | cjsg                              |
+| TJMT     | cjsg                              |
+| TJTO     | cjsg, cjpg                        |
+| TJPB     | cjsg                              |
+| TJPI     | cjsg                              |
+| TJRJ     | cjsg                              |
+| TJRN     | cjsg                              |
+| TJRO     | cjsg                              |
+| TJRR     | cjsg                              |
+| TJSC     | cjsg                              |
+| TRF3     | cpopg                             |
+| TRF5     | cpopg                             |
+| TRF6     | cpopg                             |
+
+> ⚠️ **TJAP — `cjsg` unavailable:** since ~2026 the TJAP jurisprudence search (Tucujuris platform) requires a [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) CAPTCHA, validated server-side. Because the scraper issues plain HTTP requests (no browser), it cannot produce the token and the backend replies `"A verificação de segurança falhou"`. In that case `cjsg` raises `TJAPSecurityCheckError` with an explanation instead of silently returning empty. There is no workaround through the public API. See [issue #279](https://github.com/jtrecenti/juscraper/issues/279).
+
+### Agregadores Disponíveis
+
+| Nome      | Funcionalidades                   |
+|-----------|-----------------------------------|
+| Datajud   | listar_processos                  |
+| Jusbr     | cpopg, download_documents         |
+| PDPJ      | existe, cpopg, documentos, movimentos, partes, pesquisa, contar, download_documents |
+
+#### JusBR and PDPJ authentication
+
+JusBR and PDPJ share the same JWT from the PJe SSO. With the `govbr` extra (`pip install 'juscraper[govbr]'`), `auth_govbr()` opens the locally installed Google Chrome, Chromium or Microsoft Edge, with a temporary profile, on the PDPJ services portal; the user logs in through gov.br, the token is captured and the window closes on its own. If no browser is found, pass its executable to `auth_govbr(navegador=...)`. The token is cached in `~/.config/juscraper/pdpj_token.json` (or under `$XDG_CONFIG_HOME/juscraper/`), readable only by its owner, and later JusBR and PDPJ instances load it without a new login. When the portal issues a refresh token, the access token is renewed automatically before it expires. The login needs a windowed browser, so it does not run on Google Colab or CI; there, pass the token to `auth(token)` or set the `PDPJ_JWT` environment variable (JusBR also accepts `JUSBR_JWT`).
+
+### Notebooks de Exemplo
+
+::: {.callout-warning}
+## Notebook runtime and Google Colab
+
+These notebooks send live requests to external services and are not guaranteed to work on Google Colab. Courts may block or throttle shared cloud and datacenter IP addresses even when the same request works from a local connection. Some examples also require CAPTCHA handling, access tokens, or optional dependencies. Local Jupyter execution is the project's reference environment; a connection failure on Colab does not, by itself, indicate a `juscraper` regression.
+:::
+
+- [Exemplo TJAC](notebooks/tjac.ipynb)
+- [Exemplo TJAL](notebooks/tjal.ipynb)
+- [Exemplo TJAM](notebooks/tjam.ipynb)
+- [Exemplo TJAP](notebooks/tjap.ipynb)
+- [Exemplo TJCE](notebooks/tjce.ipynb)
+- [Exemplo TJBA](notebooks/tjba.ipynb)
+- [Exemplo TJSP](notebooks/tjsp.ipynb)
+- [Exemplo TJRS](notebooks/tjrs.ipynb)
+- [Exemplo TJPR](notebooks/tjpr.ipynb)
+- [Exemplo TJPA](notebooks/tjpa.ipynb)
+- [Exemplo TJPE](notebooks/tjpe.ipynb)
+- [Exemplo TJES](notebooks/tjes.ipynb)
+- [Exemplo TJMS](notebooks/tjms.ipynb)
+- [Exemplo TJDFT](notebooks/tjdft.ipynb)
+- [Exemplo TJGO](notebooks/tjgo.ipynb)
+- [Exemplo TJMG](notebooks/tjmg.ipynb)
+- [Exemplo TJMT](notebooks/tjmt.ipynb)
+- [Exemplo TJTO](notebooks/tjto.ipynb)
+- [Exemplo TJPB](notebooks/tjpb.ipynb)
+- [Exemplo TJPI](notebooks/tjpi.ipynb)
+- [Exemplo TJRJ](notebooks/tjrj.ipynb)
+- [Exemplo TJRN](notebooks/tjrn.ipynb)
+- [Exemplo TJRO](notebooks/tjro.ipynb)
+- [Exemplo TJRR](notebooks/tjrr.ipynb)
+- [Exemplo TJSC](notebooks/tjsc.ipynb)
+- [Exemplo TRF3](notebooks/trf3.ipynb)
+- [Exemplo TRF5](notebooks/trf5.ipynb)
+- [Exemplo TRF6](notebooks/trf6.ipynb)
+- [Exemplo Datajud](notebooks/datajud.ipynb)
+- [Exemplo Jusbr](notebooks/jusbr.ipynb)
+
+## Informações adicionais
+
+### Diferenciais do `juscraper`:
+
+- Controle sobre arquivos brutos: o pacote fornece uma interface para baixar e armazenar arquivos brutos (HTML e JSON, por exemplo) dos processos. Por padrão, no entanto, esses arquivos brutos são descartados assim que os dados são processados, com exceção dos arquivos que apresentaram algum problema na leitura.
+
+### Restrições:
+
+Por ser um pacote bastante complexo e também nichado, adotamos algumas restrições sobre o escopo do pacote para que seja simples de usar.
+
+- O pacote não utiliza paralelização, ou seja, se o usuário tiver interesse em realizar requisições em paralelo, deverá desenvolver as adaptações necessárias.
+- O pacote não possui absolutamente todas as funcionalidades que os tribunais permitem. Se o usuário tiver interesse em consultar processos em mais tribunais, deverá desenvolver os raspadores.
+
+## Contribuição
+
+Interessado em contribuir? Verifique as diretrizes de contribuição no arquivo [CONTRIBUTING.md](https://github.com/jtrecenti/juscraper/blob/main/CONTRIBUTING.md). Por favor, note que este projeto é lançado com um Código de Conduta. Ao contribuir para este projeto, você concorda em obedecer às suas termos.
+
+## Licença
+
+`juscraper` foi criado por Julio Trecenti. Está licenciado sob os termos da licença MIT.

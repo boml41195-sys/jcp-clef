@@ -1,0 +1,153 @@
+"""Scraper for the Tribunal de Justiça do Rio Grande do Sul (TJRS)."""
+from typing import ClassVar
+
+import pandas as pd
+
+from juscraper.core.http import HTTPScraper
+from juscraper.utils.params import apply_input_pipeline_search
+
+from .download import cjsg_download_manager
+from .parse import cjsg_parse_manager
+from .schemas import InputCJSGTJRS
+
+
+class TJRSScraper(HTTPScraper):
+    """Scraper for the Tribunal de Justiça do Rio Grande do Sul."""
+
+    BASE_URL = "https://www.tjrs.jus.br/buscas/jurisprudencia/ajax.php"
+    DEFAULT_PARAMS: ClassVar[dict[str, str]] = {
+        "tipo-busca": "jurisprudencia-mob",
+        "client": "tjrs_index",
+        "proxystylesheet": "tjrs_index",
+        "lr": "lang_pt",
+        "oe": "UTF-8",
+        "ie": "UTF-8",
+        "getfields": "*",
+        "filter": "0",
+        "entqr": "3",
+        "content": "body",
+        "accesskey": "p",
+        "ulang": "",
+        "entqrm": "0",
+        "ud": "1",
+        "start": "0",
+        "aba": "jurisprudencia",
+        "sort": "date:D:L:d1"
+    }
+
+    def __init__(self):
+        super().__init__("TJRS")
+
+    def cpopg(self, id_cnj: str | list[str]):
+        """Stub: Primeiro grau case consultation not implemented for TJRS."""
+        raise NotImplementedError("Consulta de processos de 1º grau não implementada para TJRS.")
+
+    def cposg(self, id_cnj: str | list[str]):
+        """Stub: Segundo grau case consultation not implemented for TJRS."""
+        raise NotImplementedError("Consulta de processos de 2º grau não implementada para TJRS.")
+
+    def cjsg_download(
+        self,
+        pesquisa: str | None = None,
+        paginas: int | list | range | None = None,
+        classe: str | None = None,
+        assunto: str | None = None,
+        orgao_julgador: str | None = None,
+        relator: str | None = None,
+        data_julgamento_inicio: str | None = None,
+        data_julgamento_fim: str | None = None,
+        data_publicacao_inicio: str | None = None,
+        data_publicacao_fim: str | None = None,
+        tipo_processo: str | None = None,
+        secao: str | None = None,
+        **kwargs,
+    ) -> list:
+        """
+        Downloads raw results from the TJRS 'jurisprudence search' (multiple pages).
+        Returns a list of raw results (JSON).
+
+        Args:
+            pesquisa: Search term. ``query`` and ``termo`` are accepted as deprecated aliases.
+            paginas (int, list, range, or None): Pages to download (1-based).
+                int: paginas=3 downloads pages 1-3.
+                range: range(1, 4) downloads pages 1-3.
+                None: downloads all available pages.
+            secao: 'civel', 'crime', or None.
+        """
+        inp = apply_input_pipeline_search(
+            InputCJSGTJRS,
+            "TJRSScraper.cjsg_download()",
+            pesquisa=pesquisa,
+            paginas=paginas,
+            kwargs=kwargs,
+            consume_pesquisa_aliases=True,
+            data_julgamento_inicio=data_julgamento_inicio,
+            data_julgamento_fim=data_julgamento_fim,
+            data_publicacao_inicio=data_publicacao_inicio,
+            data_publicacao_fim=data_publicacao_fim,
+            classe=classe,
+            assunto=assunto,
+            orgao_julgador=orgao_julgador,
+            relator=relator,
+            tipo_processo=tipo_processo,
+            secao=secao,
+        )
+        return cjsg_download_manager(
+            termo=inp.pesquisa,
+            paginas=inp.paginas,
+            request_fn=self._request_with_retry,
+            classe=inp.classe,
+            assunto=inp.assunto,
+            orgao_julgador=inp.orgao_julgador,
+            relator=inp.relator,
+            data_julgamento_inicio=inp.data_julgamento_inicio,
+            data_julgamento_fim=inp.data_julgamento_fim,
+            data_publicacao_inicio=inp.data_publicacao_inicio,
+            data_publicacao_fim=inp.data_publicacao_fim,
+            tipo_processo=inp.tipo_processo,
+            secao=inp.secao,
+        )
+
+    def cjsg_parse(self, resultados_brutos: list) -> 'pd.DataFrame':
+        """
+        Extracts relevant data from the raw results returned by TJRS.
+        Returns a DataFrame with the decisions.
+        """
+        return cjsg_parse_manager(resultados_brutos)
+
+    def cjsg(
+        self,
+        pesquisa: str | None = None,
+        paginas: int | list | range | None = None,
+        classe: str | None = None,
+        assunto: str | None = None,
+        orgao_julgador: str | None = None,
+        relator: str | None = None,
+        data_julgamento_inicio: str | None = None,
+        data_julgamento_fim: str | None = None,
+        data_publicacao_inicio: str | None = None,
+        data_publicacao_fim: str | None = None,
+        tipo_processo: str | None = None,
+        secao: str | None = None,
+        **kwargs,
+    ) -> 'pd.DataFrame':
+        """
+        Fetches jurisprudence from TJRS in a simplified way (download + parse).
+        Returns a ready-to-analyze DataFrame.
+        """
+        brutos = self.cjsg_download(
+            pesquisa=pesquisa,
+            paginas=paginas,
+            classe=classe,
+            assunto=assunto,
+            orgao_julgador=orgao_julgador,
+            relator=relator,
+            data_julgamento_inicio=data_julgamento_inicio,
+            data_julgamento_fim=data_julgamento_fim,
+            data_publicacao_inicio=data_publicacao_inicio,
+            data_publicacao_fim=data_publicacao_fim,
+            tipo_processo=tipo_processo,
+            secao=secao,
+            **kwargs,
+        )
+        return self.cjsg_parse(brutos)

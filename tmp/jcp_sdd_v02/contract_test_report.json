@@ -1,0 +1,210 @@
+{
+  "passed": 34,
+  "failed": 0,
+  "cases": [
+    {
+      "id": "C01",
+      "scenario": "Sucesso com limite solicitado satisfeito, sem esgotar a fonte",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "id": "C02",
+      "scenario": "Sucesso vazio com fonte esgotada",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "id": "C03",
+      "scenario": "Parcial util ao atingir limite de paginas",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "id": "C04",
+      "scenario": "Execucao em andamento sem dados publicados",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "id": "C05",
+      "scenario": "Sessao expirada, sem disfarcar o estado como vazio",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "id": "C06",
+      "scenario": "Falha de parser, sem publicar itens rejeitados",
+      "expected": "accept",
+      "actual": "accept"
+    },
+    {
+      "id": "N01",
+      "scenario": "Campo extra no envelope",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N02",
+      "scenario": "Tipo booleano usado como limite numerico",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N03",
+      "scenario": "Intervalo de datas invertido",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N04",
+      "scenario": "Data impossivel",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N05",
+      "scenario": "Filtro de data nao suportado pela capacidade",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N06",
+      "scenario": "Consulta composta somente por espacos",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N07",
+      "scenario": "Modelo com orcamento negativo",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N08",
+      "scenario": "Cache autorizado sem idade maxima positiva",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N09",
+      "scenario": "Sucesso sem verificacao",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N10",
+      "scenario": "Sucesso com escopo incompleto",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N11",
+      "scenario": "Quantidade declarada diverge dos itens",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N12",
+      "scenario": "Item sem evidencia",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N13",
+      "scenario": "Evidencia do item ausente no relatorio",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N14",
+      "scenario": "Fonte concluida nao solicitada",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N15",
+      "scenario": "Timestamp sem fuso",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N16",
+      "scenario": "Relatorio aprovado com check que falhou",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N17",
+      "scenario": "Check duplicado oculta check ausente",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N18",
+      "scenario": "ID de receita sem versao",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N19",
+      "scenario": "Orcamento de inferencia excedido",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N20",
+      "scenario": "Orcamento de paginas excedido",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N21",
+      "scenario": "Data conhecida fora do filtro solicitado",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N22",
+      "scenario": "Menos itens que o pedido sem esgotar a fonte",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N23",
+      "scenario": "Transporte explicito desrespeitado",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N24",
+      "scenario": "Resultado final tenta publicar HTML como URL de origem",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N25",
+      "scenario": "Parcial quando o chamador recusou parcial",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N26",
+      "scenario": "Vazio sem prova de esgotamento",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N27",
+      "scenario": "Identidade de decisao duplicada",
+      "expected": "reject",
+      "actual": "reject"
+    },
+    {
+      "id": "N28",
+      "scenario": "Reparo fora da opcao autorizada",
+      "expected": "reject",
+      "actual": "reject"
+    }
+  ]
+}

@@ -1,0 +1,352 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "juscraper"
+version = "0.4.0"
+description = "Raspador de tribunais e outros sistemas relacionados ao poder judiciário."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Julio Trecenti", email = "jtrecenti@gmail.com"},
+]
+maintainers = [
+    {name = "Julio Trecenti", email = "jtrecenti@gmail.com"},
+]
+keywords = [
+    "web-scraping",
+    "legal-data",
+    "courts",
+    "judiciary",
+    "brasil",
+    "tribunais",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Legal Industry",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Markup :: HTML",
+]
+dependencies = [
+    "asttokens>=3.0.0",
+    "beautifulsoup4>=4.13.4",
+    "browser-cookie3>=0.20.1",
+    "comm>=0.2.2",
+    "nest-asyncio>=1.6.0",
+    # Teto <3.0.0 mantido por causa do conflito de resolvedor no Google Colab
+    # (cudf-cu12 exige pandas<2.2.4dev0,>=2.0) — ver issue #25. Nao remover sem
+    # validar contra a imagem atual do Colab.
+    "pandas>=2.0.0,<3.0.0",
+    "pyjwt>=2.10.1",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.1.0",
+    "requests>=2.32.3",
+    "tqdm>=4.67.1",
+    "unidecode>=1.3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.12.0",
+    "responses>=0.25.0",
+    "pylint>=3.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.15.0",
+    "bandit>=1.9.4",
+    "types-requests>=2.32.0",
+    "pre-commit>=3.0.0",
+    "nbmake>=1.5.0",
+    "pytest-xdist>=3.0.0",
+    "lizard>=1.17.0",
+    "complexipy>=5.0.0",
+]
+waf = [
+    # Obtem o cookie aws-waf-token dos portais atras do desafio JavaScript do AWS WAF (STF, TJPE).
+    "playwright>=1.49",
+]
+stf = [
+    # Alias de `waf`, mantido para quem ja instala `juscraper[stf]` desde a 0.4.0.
+    "juscraper[waf]",
+]
+govbr = [
+    # Conexão por CDP ao Chrome da máquina no login gov.br do JusBR e do PDPJ (`auth_govbr()`).
+    "playwright>=1.49",
+]
+docs = [
+    "quartodoc>=0.11.1",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.7",
+    # Engine de Parquet usada apenas pelos notebooks de docs/ (`df.to_parquet`).
+    # A biblioteca nunca importa pyarrow — manter aqui e nao em dependencies e o
+    # que impede o juscraper de arrastar a versao do pyarrow para quem o instala
+    # (era a origem do conflito com cudf no Colab, #25, e do alerta de pip-audit
+    # em projetos downstream, #342). Piso 23.0.1: primeira versao com wheel para
+    # todos os Pythons suportados e fora da faixa do PYSEC-2026-113.
+    "pyarrow>=23.0.1",
+]
+web = [
+    "flask>=3.1.1",
+    "joblib>=1.5.0",
+]
+tjmg = [
+    "txtcaptcha>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/jtrecenti/juscraper"
+Documentation = "https://jtrecenti.github.io/juscraper/"
+Repository = "https://github.com/jtrecenti/juscraper.git"
+"Bug Tracker" = "https://github.com/jtrecenti/juscraper/issues"
+Changelog = "https://github.com/jtrecenti/juscraper/blob/main/CHANGELOG.md"
+
+# Build configuration (hatchling)
+# Allowlist explicita: o que NAO esta listado fica de fora dos artefatos publicados.
+# Wheel: somente o pacote em src/juscraper/ (tests/, docs/, etc. ficam de fora).
+# Sdist: pacote + arquivos de projeto (README, LICENSE, CHANGELOG, etc.). Tests/samples nao entram.
+# Refs #139.
+[tool.hatch.build.targets.wheel]
+packages = ["src/juscraper"]
+
+[tool.hatch.build.targets.sdist]
+# Patterns ancorados com `/` (sintaxe pathspec) garantem que `README.md` so case com o
+# da raiz e nao com `tests/fixtures/capture/README.md` ou copias dentro de worktrees.
+include = [
+    "/src/juscraper",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/CONTRIBUTING.md",
+    "/CONDUCT.md",
+    "/pyproject.toml",
+]
+# Exclude defensivo: se algum dia a allowlist crescer e capturar paths indesejados,
+# estes ficam de fora explicitamente.
+exclude = [
+    "/.claude",
+    "/.codex",
+    "/.github",
+    "/.pytest_cache",
+    "/.mypy_cache",
+    "/.venv",
+    "/dist",
+    "/build",
+    "/issues",
+    "/scripts",
+    "/tests",
+    "/docs",
+    "/uv.lock",
+    "/AGENTS.md",
+    "/PUBLISHING.md",
+    "/.pre-commit-config.yaml",
+    "/.readthedocs.yml",
+    "/.gitignore",
+]
+
+# Tool configurations
+[tool.pylint.main]
+load-plugins = ["pylint.extensions.docparams"]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.design]
+max-args = 10
+max-locals = 20
+max-returns = 6
+max-branches = 15
+max-statements = 50
+max-parents = 7
+max-attributes = 10
+min-public-methods = 1
+max-public-methods = 25
+
+[tool.pylint.similarities]
+min-similarity-lines = 4
+ignore-comments = true
+ignore-docstrings = true
+ignore-imports = false
+
+[tool.pylint.variables]
+init-import = false
+dummy-variables-rgx = "_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_"
+
+[tool.pylint.classes]
+valid-classmethod-first-arg = "cls"
+valid-metaclass-classmethod-first-arg = "mcs"
+
+[tool.pylint.imports]
+known-third-party = ["pandas", "requests", "beautifulsoup4", "tqdm", "unidecode"]
+
+[tool.pylint.messages_control]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-locals",
+    "too-many-branches",
+    "too-many-statements",
+    "too-many-instance-attributes",
+    "too-many-public-methods",
+    "too-many-nested-blocks",
+    "too-many-positional-arguments",
+    "unknown-option-value",
+    "import-error",
+    "no-member",
+    "unused-argument",
+    "broad-except",
+    "fixme",
+    "invalid-name",
+    "ungrouped-imports",
+    "no-else-return",
+    "no-else-raise",
+    "logging-fstring-interpolation",
+    "logging-not-lazy",
+    "trailing-whitespace",
+    "trailing-newlines",
+    "duplicate-code",
+    "missing-param-doc",
+    "missing-type-doc",
+    "missing-return-doc",
+    "missing-return-type-doc",
+    "line-too-long",
+    "import-outside-toplevel",
+    "redefined-outer-name",
+    "reimported",
+    "attribute-defined-outside-init",
+    "use-maxsplit-arg",
+    "f-string-without-interpolation",
+    "consider-using-f-string",
+    "use-dict-literal",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["tests/*/samples"]
+
+[tool.ruff.lint]
+select = [
+    "UP006",  # PEP 585 (List -> list)
+    "UP007",  # PEP 604 (Union[X, Y] -> X | Y)
+    "UP035",  # deprecated import (typing.List -> builtins, etc.)
+    "UP045",  # PEP 604 (Optional[X] -> X | None)
+    "B",      # flake8-bugbear: bug-risk (ex.: zip() sem strict=)
+    "C4",     # flake8-comprehensions: comprehensions/calls desnecessarios
+    "RUF",    # regras do proprio Ruff (ex.: mutable-class-default)
+    "RET",    # flake8-return: return flow (ex.: assign inutil antes de return)
+    "SIM",    # flake8-simplify: simplificacoes (ternario, with unico, yoda)
+    "PERF",   # perflint: laco->comprehension/extend onde compensa
+    "PTH",    # flake8-use-pathlib: os.path/open/glob -> pathlib
+]
+ignore = [
+    # Caracteres "ambiguos" em texto pt-BR sao legitimos. Docstrings e
+    # comentarios usam EN DASH (travessao) e afins de proposito; nao
+    # queremos que o Ruff peca para troca-los por ASCII.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # RUF100 (unused-noqa) nao convive bem com este projeto: o flake8 roda
+    # em paralelo e ha `# noqa: E231/E702` (pycodestyle) e `# noqa: BLE001`
+    # (regra do Ruff ainda nao habilitada) que sao intencionais. O Ruff os
+    # trataria como obsoletos e removeria, quebrando o flake8 e apagando
+    # decisoes documentadas. Reavaliar se/quando BLE for habilitada.
+    "RUF100",
+]
+
+[tool.isort]
+line_length = 120
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+known_first_party = ["juscraper"]
+known_third_party = [
+    "pandas",
+    "requests",
+    "beautifulsoup4",
+]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "build",
+    "dist",
+    "*.egg-info",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config -m 'not integration'"
+testpaths = ["tests"]
+pythonpath = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: hits live external services (run with '-m integration')",
+    "release: comprehensive tests run before major releases (deselect with '-m \"not release\"')",
+    "vcr: uses pytest-recording cassettes",
+    "anti_bot: integration test prone to anti-bot blocking (e.g. Akamai on TRF PJe); a BotChallengeBlockedError is reported as xfail (env-dependent on the client IP), so a real regression still fails loudly",
+]
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

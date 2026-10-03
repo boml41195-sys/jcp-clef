@@ -1,0 +1,70 @@
+"""Funcoes de download para o agregador ComunicaCNJ.
+
+A API publica de Comunicacoes Processuais do CNJ
+(``https://comunicaapi.pje.jus.br/api/v1/comunicacao``) e um endpoint REST
+GET com paginacao 1-based. Cada chamada devolve um JSON com:
+
+- ``count`` (int): total de comunicacoes que casam com o filtro.
+- ``items`` (list[dict]): pagina atual.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from ...utils.cnj import clean_cnj
+
+logger = logging.getLogger(__name__)
+
+BASE_URL = "https://comunicaapi.pje.jus.br/api/v1/comunicacao"
+
+DEFAULT_HEADERS: dict[str, str] = {
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Language": "pt-BR,en-US;q=0.7,en;q=0.3",
+    "Connection": "keep-alive",
+    "Origin": "https://comunica.pje.jus.br",
+    "Referer": "https://comunica.pje.jus.br/",
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64; rv:139.0) "
+        "Gecko/20100101 Firefox/139.0"
+    ),
+}
+
+
+def build_listar_comunicacoes_params(
+    *,
+    pesquisa: str = "",
+    numero_processo: str | None = None,
+    pagina: int,
+    itens_por_pagina: int = 100,
+    data_disponibilizacao_inicio: str | None = None,
+    data_disponibilizacao_fim: str | None = None,
+) -> dict[str, Any]:
+    """Monta a querystring aceita pelo endpoint de listagem.
+
+    Args:
+        pesquisa: Termo de busca (parametro ``texto``). ``""`` omite o
+            parametro.
+        numero_processo: CNJ para o parametro ``numeroProcesso``, enviado so
+            com os digitos. ``None`` omite o parametro.
+        pagina: Numero da pagina (1-based).
+        itens_por_pagina: Resultados por pagina (1-100).
+        data_disponibilizacao_inicio: ISO ``YYYY-MM-DD`` para o param
+            ``dataDisponibilizacaoInicio`` da API.
+        data_disponibilizacao_fim: ISO ``YYYY-MM-DD`` para o param
+            ``dataDisponibilizacaoFim`` da API.
+    """
+    params: dict[str, Any] = {
+        "itensPorPagina": itens_por_pagina,
+        "pagina": pagina,
+    }
+    if pesquisa:
+        params["texto"] = pesquisa
+    if numero_processo is not None:
+        params["numeroProcesso"] = clean_cnj(numero_processo)
+    if data_disponibilizacao_inicio is not None:
+        params["dataDisponibilizacaoInicio"] = data_disponibilizacao_inicio
+    if data_disponibilizacao_fim is not None:
+        params["dataDisponibilizacaoFim"] = data_disponibilizacao_fim
+    return params

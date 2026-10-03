@@ -1,0 +1,122 @@
+"""Downloads raw results from the TJRO jurisprudence search (Elasticsearch API)."""
+import math
+import time
+
+from tqdm import tqdm
+
+from juscraper.core.http import RequestFn
+
+BASE_URL = "https://juris-back.tjro.jus.br/search/varios_parametros/"
+RESULTS_PER_PAGE = 10
+
+
+def build_cjsg_payload(
+    pesquisa: str,
+    offset: int = 0,
+    size: int = RESULTS_PER_PAGE,
+    tipo: list | None = None,
+    nr_processo: str = "",
+    relator: str = "",
+    orgao_julgador: int | str = "",
+    orgao_julgador_colegiado: int | str = "",
+    classe: str = "",
+    data_julgamento_inicio: str = "",
+    data_julgamento_fim: str = "",
+    instancia: list | None = None,
+    termo_exato: bool = False,
+) -> dict:
+    """Build the JSON payload for the TJRO CJSG search API.
+
+    Public parameters use canonical names (``relator``, ``classe``); the
+    backend Elasticsearch field names (``ds_nome``, ``ds_classe_judicial``)
+    are an internal detail of the JURIS API and stay unchanged.
+    """
+    if tipo is None:
+        tipo = ["EMENTA"]
+
+    fields: dict = {"tipo": tipo, "query": pesquisa}
+    if nr_processo:
+        fields["nr_processo"] = nr_processo
+    if relator:
+        fields["ds_nome"] = relator
+    if orgao_julgador:
+        fields["id_orgao_julgador"] = str(orgao_julgador)
+    if orgao_julgador_colegiado:
+        fields["id_orgao_julgador_colegiado"] = str(orgao_julgador_colegiado)
+    if classe:
+        fields["ds_classe_judicial"] = classe
+    if data_julgamento_inicio:
+        fields["dtjulgamento_inicio"] = data_julgamento_inicio
+    if data_julgamento_fim:
+        fields["dtjulgamento_fim"] = data_julgamento_fim
+    if instancia:
+        fields["grau_jurisdicao"] = instancia
+    if termo_exato:
+        fields["termoExato"] = True
+
+    return {
+        "from": offset,
+        "size": size,
+        "fields": fields,
+        "sort": [{"_score": "desc"}, {"dtjulgamento": "desc"}],
+        "token": "",  # nosec
+        "highlight": {
+            "type": "plain",
+            "number_of_fragments": 1,
+            "fragment_size": 3000,
+            "require_field_match": "true",
+            "pre_tags": ["<em>"],
+            "post_tags": ["</em>"],
+            "fields": [{"ds_modelo_documento": {"number_of_fragments": 1}}],
+        },
+    }
+
+
+def cjsg_download_manager(
+    pesquisa: str,
+    paginas=None,
+    *,
+    request_fn: RequestFn,
+    sleep_time: float = 1.0,
+    **kwargs,
+) -> list:
+    """Download raw results from the TJRO jurisprudence search.
+
+    Returns a list of raw JSON responses (one per page).
+
+    Args:
+        pesquisa: Search term.
+        paginas (list, range, or None): Pages to download (1-based).
+        request_fn: HTTP callable que faz retry + raise_for_status — em uso
+            normal e ``TJROScraper._request_with_retry`` (via
+            ``core.http.HTTPScraper``), centralizando backoff para 429/5xx.
+        sleep_time: Delay (em segundos) entre páginas. Default 1.0; o client
+            normalmente passa ``self.sleep_time`` herdado de ``HTTPScraper``.
+        **kwargs: Additional filter parameters forwarded to ``build_cjsg_payload``.
+    """
+    def _get_page(pagina_1based):
+        offset = (pagina_1based - 1) * RESULTS_PER_PAGE
+        payload = build_cjsg_payload(pesquisa, offset=offset, **kwargs)
+        resp = request_fn("POST", BASE_URL, json=payload, timeout=30)
+        data: dict = resp.json()
+        return data
+
+    if paginas is None:
+        first = _get_page(1)
+        resultados = [first]
+        total_info = first.get("hits", {}).get("total", {})
+        total = total_info.get("value", 0) if isinstance(total_info, dict) else total_info
+        n_pags = math.ceil(total / RESULTS_PER_PAGE) if total else 1
+        if n_pags > 1:
+            for pagina in tqdm(range(2, n_pags + 1), desc="Baixando CJSG TJRO"):
+                time.sleep(sleep_time)
+                resultados.append(_get_page(pagina))
+        return resultados
+
+    paginas_iter = list(paginas)
+    resultados = []
+    for pagina_1based in tqdm(paginas_iter, desc="Baixando CJSG TJRO"):
+        if resultados:
+            time.sleep(sleep_time)
+        resultados.append(_get_page(pagina_1based))
+    return resultados
